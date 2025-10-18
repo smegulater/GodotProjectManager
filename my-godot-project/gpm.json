@@ -1,0 +1,10 @@
+{
+  "name": "my-godot-project",
+  "description": "A new Godot project",
+  "engine": "4.5.1",
+  "template": "2d",
+  "language": "gdscript",
+  "author": "smegulater",
+  "createdAt": "2025-10-18T22:27:26.268Z",
+  "version": "0.1.0"
+}
