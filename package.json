@@ -1,10 +1,16 @@
 {
   "name": "godotprojectmanager",
-  "version": "1.0.0",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "gpm": "./dist/index.js"
+  },
   "description": "A npm based Godot Project Manager - provides opinionated project setup and managemenet utilities ",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "postinstall": "node scripts/setup.js"
   },
   "repository": {
     "type": "git",
@@ -16,5 +22,24 @@
     "Manager"
   ],
   "author": "George Chambers",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.1",
+    "execa": "^9.6.0",
+    "fs-extra": "^11.3.2",
+    "inquirer": "^12.10.0",
+    "ora": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/chalk": "^0.4.31",
+    "@types/commander": "^2.12.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^24.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
 }

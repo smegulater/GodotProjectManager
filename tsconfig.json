@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    /* === File Layout === */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* === Module & Target === */
+    "module": "nodenext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "types": ["node"],
+
+    /* === Output Options === */
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": false,
+
+    /* === Strictness === */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+
+    /* === Style & Safety === */
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* === Module Behavior === */
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+
+    /* === Node ESM Compatibility === */
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
