@@ -1,0 +1,6 @@
+[gd_project]
+config_version=5
+
+[application]
+config/name="my-godot-project"
+run/main_scene="res://scenes/main.tscn"
