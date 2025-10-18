@@ -2,9 +2,9 @@
   "name": "my-godot-project",
   "description": "A new Godot project",
   "engine": "4.5.1",
-  "template": "2d",
+  "template": "3d",
   "language": "gdscript",
   "author": "smegulater",
-  "createdAt": "2025-10-18T17:44:15.853Z",
+  "createdAt": "2025-10-18T19:29:08.700Z",
   "version": "0.1.0"
 }
