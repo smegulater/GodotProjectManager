@@ -3,6 +3,7 @@ import path from "path";
 import chalk from "chalk";
 import ora from "ora";
 import AdmZip from "adm-zip";
+import inquirer, { type Answers } from "inquirer";
 
 import { downloadFile } from "../utils/download.js";
 
@@ -105,40 +106,41 @@ export async function installEngine(
   }
 }
 
-export async function uninstallEngine(version: string) {
+export async function uninstallEngine() {
   const enginesPath = getEngineDir();
-  const spinner = ora(`Uninstalling Godot ${version} ...`).start();
 
-  if (
-    !(await checkForExistingInstallation(
-      enginesPath,
-      version,
-      version.endsWith("mono")
-    ))
-  ) {
-    spinner.warn(`Engine version ${version} does not exist. exiting.`);
+  const installedEngines = await listEngines(true);
+  if (installedEngines.length === 0) {
+    console.log(`No Engines installed. Exiting.`);
     return;
   }
 
+  const answers: Answers = await inquirer.prompt([
+    {
+      type: "list",
+      name: "version",
+      message: "Engine version to uninstall:",
+      choices: installedEngines
+    },
+  ]);
+
+  const spinner = ora(`Uninstalling Godot ${answers.version} ...`).start();
+
   try {
-    await fs.removeSync(path.join(enginesPath, version));
-    spinner.succeed(`Uninstalled ${version} successfully`);
+    await fs.removeSync(path.join(enginesPath, answers.version));
+    spinner.succeed(`Uninstalled ${answers.version} successfully`);
   } catch (error: any) {
-    spinner.fail(`Failed to uninstall ${version} due to: ${error}`);
+    spinner.fail(`Failed to uninstall ${answers.version} due to: ${error}`);
   }
 }
 
-export async function listEngines() {
+export async function listEngines(hideOutput: boolean = false) {
   const enginesPath = getEngineDir();
-  if (!fs.existsSync(enginesPath)) {
-    return;
-  }
+  const dirs: Array<string> = await fs.readdir(enginesPath);
 
-  const dirs = await fs.readdir(enginesPath);
-  if (dirs.length === 0) {
-    return;
+  if (!hideOutput) {
+    console.log(chalk.cyan("Installed Godot engines:"));
+    for (const dir of dirs) console.log(` - ${dir}`);
   }
-
-  console.log(chalk.cyan("Installed Godot engines:"));
-  for (const dir of dirs) console.log(` - ${dir}`);
+  return dirs;
 }
