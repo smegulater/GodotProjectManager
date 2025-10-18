@@ -17,25 +17,40 @@ export function getEngineDir() {
   return dir;
 }
 
-async function checkForExistingInstallation(enginesPath: string, version:string, mono: boolean){
+async function checkForExistingInstallation(
+  enginesPath: string,
+  version: string,
+  mono: boolean
+) {
   const extractDir = path.join(enginesPath, `${version}${mono ? "-mono" : ""}`);
-    let exists: boolean = false;
-    if (await fs.pathExists(extractDir)) {
-      exists = true;
-      console.log(chalk.green(`Godot ${version}${mono ? " (Mono)" : ""} installation already exists.`));
-    }
-    
-    return exists;
+  let exists: boolean = false;
+  if (await fs.pathExists(extractDir)) {
+    exists = true;
+    console.log(
+      chalk.green(
+        `Godot ${version}${mono ? " (Mono)" : ""} installation already exists.`
+      )
+    );
+  }
+
+  return exists;
 }
 
-export async function installEngine(version: string, flavor: "stable" | "rc" | "beta" = "stable", mono: boolean = false) {
+export async function installEngine(
+  version: string,
+  flavor: "stable" | "rc" | "beta" = "stable",
+  mono: boolean = false
+) {
   const enginesPath = getEngineDir();
-  
-  if(await checkForExistingInstallation(enginesPath, version, mono)) return;
+
+  if (await checkForExistingInstallation(enginesPath, version, mono)) return;
 
   const spinner = ora(`Installing Godot ${version} (${flavor})...`).start();
   try {
-    const extractDir = path.join(enginesPath, `${version}${mono ? "-mono" : ""}`);
+    const extractDir = path.join(
+      enginesPath,
+      `${version}${mono ? "-mono" : ""}`
+    );
 
     // Otherwise, continue with download
     let slug = "";
@@ -77,12 +92,39 @@ export async function installEngine(version: string, flavor: "stable" | "rc" | "
     zip.extractAllTo(extractDir, true);
     await fs.remove(destZip);
 
-    spinner.succeed(chalk.green(`Godot ${version}${mono ? " (Mono)" : ""} installed successfully!`));
+    spinner.succeed(
+      chalk.green(
+        `Godot ${version}${mono ? " (Mono)" : ""} installed successfully!`
+      )
+    );
     console.log(chalk.gray(`→ Installed at: ${extractDir}`));
-
   } catch (err: any) {
-    spinner.fail(chalk.red(`Failed to install Godot ${version}: ${err.message}`));
+    spinner.fail(
+      chalk.red(`Failed to install Godot ${version}: ${err.message}`)
+    );
+  }
+}
 
+export async function uninstallEngine(version: string) {
+  const enginesPath = getEngineDir();
+  const spinner = ora(`Uninstalling Godot ${version} ...`).start();
+
+  if (
+    !(await checkForExistingInstallation(
+      enginesPath,
+      version,
+      version.endsWith("mono")
+    ))
+  ) {
+    spinner.warn(`Engine version ${version} does not exist. exiting.`);
+    return;
+  }
+
+  try {
+    await fs.removeSync(path.join(enginesPath, version));
+    spinner.succeed(`Uninstalled ${version} successfully`);
+  } catch (error: any) {
+    spinner.fail(`Failed to uninstall ${version} due to: ${error}`);
   }
 }
 

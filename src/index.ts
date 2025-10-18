@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { initProject } from "./commands/init.js";
-import { installEngine, listEngines } from "./commands/engine.js";
+//import { initProject } from "./commands/init.js";
+import { installEngine, listEngines, uninstallEngine } from "./commands/engine.js";
 import { runProject } from "./commands/run.js";
 import { useEngine } from "./commands/use.js";
 import { newProject } from "./commands/new.js";
@@ -9,17 +9,23 @@ import { newProject } from "./commands/new.js";
 const program = new Command();
 
 program.name("gpm").description("Godot Project Manager CLI").version("0.1.0");
+program
+  .command("new")
+  .description("Create a new Godot project using the setup wizard")
+  .action(newProject);
 
+/*
 program
   .command("init")
   .description("Initialize a new Godot project")
   .action(initProject);
-
+*/
 const engine = program
   .command("engine")
   .description("Manage Godot engine versions");
 
 engine.command("install <version>").action(installEngine);
+engine.command("uninstall <version>").action(uninstallEngine);
 engine.command("list").action(listEngines);
 
 program
@@ -36,9 +42,5 @@ program
   .description("Select or set the Godot engine version for this project")
   .action(useEngine);
 
-program
-  .command("new")
-  .description("Create a new Godot project using the setup wizard")
-  .action(newProject);
 
 program.parse();
