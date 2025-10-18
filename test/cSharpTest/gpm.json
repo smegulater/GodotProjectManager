@@ -1,0 +1,10 @@
+{
+  "name": "cSharpTest",
+  "description": "A new Godot project",
+  "engine": "4.5.1",
+  "template": "3d",
+  "language": "mono",
+  "author": "smegulater",
+  "createdAt": "2025-10-18T19:46:32.155Z",
+  "version": "0.1.0"
+}
