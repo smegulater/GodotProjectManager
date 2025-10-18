@@ -40,7 +40,7 @@ export async function useEngine(versionArg?: string) {
 
   // Write .gpmrc
   const rcPath = path.join(cwd, ".gpmrc");
-  const data = { engine: chosenVersion };
+  const data = { engine: chosenVersion};
   await fs.writeJson(rcPath, data, { spaces: 2 });
 
   console.log(chalk.green(`Engine set to ${chosenVersion} for this project`));

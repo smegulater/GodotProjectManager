@@ -27,9 +27,18 @@ program
 const engine = program
   .command("engine")
   .description("Manage Godot engine versions");
+engine.command("install [version]")
+  .description("Install a specific or project-defined Godot engine")
+  .option("--flavor <type>", "Engine flavor (stable, rc, beta)", "stable")
+  .option("--mono", "Install Mono (C#) version", false)
+  .action(async (version, options) => {
+    const flavor = options.flavor || "stable";
+    const mono = !!options.mono;
+    await installEngine(version, flavor, mono);
+  });
 
-engine.command("install <version>").action(installEngine);
 engine.command("uninstall").action(uninstallEngine);
+
 engine.command("list").action(function () {
   listEngines(false);
 });

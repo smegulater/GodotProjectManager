@@ -38,11 +38,39 @@ async function checkForExistingInstallation(
 }
 
 export async function installEngine(
-  version: string,
+  version?: string,
   flavor: "stable" | "rc" | "beta" = "stable",
-  mono: boolean = false
+  mono?: boolean
 ) {
+  const projectDir = process.cwd();
   const enginesPath = getEngineDir();
+
+// 🧩 Try to auto-detect version & mono if not provided
+  if (!version) {
+    const gpmrcPath = path.join(projectDir, ".gpmrc");
+    const gpmJsonPath = path.join(projectDir, "gpm.json");
+
+    if (fs.existsSync(gpmrcPath)) {
+      const gpmrc = await fs.readJson(gpmrcPath);
+      version = gpmrc.engineVersion;
+      mono = gpmrc.mono ?? mono;
+    } else if (fs.existsSync(gpmJsonPath)) {
+      const gpmConfig = await fs.readJson(gpmJsonPath);
+      version = gpmConfig.engine;
+      mono = gpmConfig.language === "mono";
+    } else {
+      console.log(chalk.red("❌ No version specified and no project config found."));
+      console.log(chalk.gray("Run inside a GPM project folder or provide a version manually."));
+      return;
+    }
+  }
+if (!version) {
+    console.log(chalk.red("❌ Unable to determine engine version."));
+    return;
+  }
+
+  // ✅ Default mono flag to false if still undefined
+  mono = mono ?? false;
 
   if (await checkForExistingInstallation(enginesPath, version, mono)) return;
 
