@@ -17,8 +17,10 @@ similar in spirit to `npm` or `npx`, but for Godot developers.
 - ⚙️ **Automatic Godot engine management**
   - Installs Godot engines per version and flavor (stable, rc, beta)
   - Supports GDScript and Mono (C#)
-  - Engines are cached in `~/.gpm/engines`
-  - Reuses installed engines automatically (no duplicate downloads)
+  - Engines are cached in the following locations:
+    - Unix: `~/.gpm/engines`
+    - Windows: `%USERPROFILE%/.gpm/engines`
+
 
 - 🧠 **Project environment handling**
   - Tracks active Godot engine via `.gpmrc`
@@ -81,7 +83,7 @@ my-godot-project/
 └── gpm.json
 ```
 
-##🧰 Engine Management
+## 🧰 Engine Management
 GPM installs and caches Godot engines under:
 
 ``` bash
