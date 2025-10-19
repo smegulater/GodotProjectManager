@@ -3,8 +3,8 @@
   "description": "A new Godot project generated with GPM",
   "engine": "4.5.1",
   "template": "2d",
-  "language": "gdscript",
+  "language": "mono",
   "author": "smegulater",
-  "createdAt": "2025-10-19T01:00:28.541Z",
+  "createdAt": "2025-10-19T01:06:01.657Z",
   "version": "0.1.0"
 }
