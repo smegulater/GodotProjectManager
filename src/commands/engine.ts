@@ -154,20 +154,25 @@ export async function uninstallEngine() {
 
   const answers: Answers = await inquirer.prompt([
     {
-      type: "list",
-      name: "version",
-      message: "Engine version to uninstall:",
+      type: "checkbox",
+      name: "versions",
+      message: "Select engines to uninstall:",
       choices: installedEngines,
     },
   ]);
 
-  const spinner = ora(`Uninstalling Godot ${answers.version} ...`).start();
+  if (answers.versions.length == 0) {
+    console.log(chalk.yellow("No options selected. Exiting."));
+  }
 
-  try {
-    await fs.removeSync(path.join(enginesPath, answers.version));
-    spinner.succeed(`Uninstalled ${answers.version} successfully`);
-  } catch (error: any) {
-    spinner.fail(`Failed to uninstall ${answers.version} due to: ${error}`);
+  for (const version of answers.versions) {
+    const spinner = ora(`Uninstalling Godot ${version} ...`).start();
+    try {
+      await fs.remove(path.join(enginesPath, version));
+      spinner.succeed(`Uninstalled ${version} successfully`);
+    } catch (error: any) {
+      spinner.fail(`Failed to uninstall ${version} due to: ${error}`);
+    }
   }
 }
 

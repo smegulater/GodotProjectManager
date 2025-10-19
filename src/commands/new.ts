@@ -56,9 +56,17 @@ export async function newProject() {
 
   //Step 5: Set .gpmrc
   process.chdir(projectDir);
-  await useEngine(
-    answers.language === "mono" ? answers.engine : `${answers.engine}-mono`
-  );
+  try {
+    await useEngine(
+      answers.language === "GDScript"
+        ? answers.engine
+        : `${answers.engine}-mono`
+    );
+  } catch (error: any) {
+    chalk.red(
+      `Failed to set the engine for new project. Run 'gpm use' to set one `
+    );
+  }
 
   console.log(
     chalk.green(`\n🎉 Project '${answers.name}' created successfully!`)

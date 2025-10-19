@@ -2,7 +2,8 @@ import fs from "fs-extra";
 import path from "path";
 import chalk from "chalk";
 import { execa } from "execa";
-
+import inquirer, { type Answers } from "inquirer";
+import {listEngines} from "./engine.js";
 /**
  * Runs the current Godot project using the selected engine.
  * Priority:
@@ -117,6 +118,61 @@ export async function runProject(mode: "default" | "test" = "default") {
   }
 }
 
+export async function runEditor() {
+
+
+  let engineVersion: string | undefined;
+
+  const home = process.env.HOME || process.env.USERPROFILE;
+  const enginesRoot = path.join(home!, ".gpm", "engines");
+
+  if (!fs.existsSync(enginesRoot)) {
+    console.log(chalk.red("No engines installed yet."));
+    console.log(
+      chalk.gray("Use `gpm engine install <version>` to install one.")
+    );
+    return;
+  }
+
+  // Find engine folder matching version (supports mono suffix)
+  const installedEngines = await listEngines(true);
+
+  const answers: Answers = await inquirer.prompt([
+    {
+      type: "list",
+      name: "version",
+      message: "Engine version to launch:",
+      choices: installedEngines,
+    },
+  ]);
+
+  const enginePath = path.join(enginesRoot, answers.version);
+  const exePath = await findEngineExecutable(enginePath);
+
+  if (!exePath) {
+    console.log(
+      chalk.red(
+        "❌ Could not find a valid Godot executable in this engine folder."
+      )
+    );
+    console.log(chalk.gray(`Checked: ${enginePath}`));
+    return;
+  }
+
+  try {
+    console.log(chalk.cyan(`⌛ Launching Godot ${engineVersion}...`));
+    const subprocess = execa(exePath,[], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+    });
+
+    subprocess.unref();
+    console.log(chalk.green("🚀 Godot editor launched!"));
+  } catch (err: any) {
+    console.log(chalk.red(`❌ Failed to run Godot: ${err.message}`));
+  }
+}
 /**
  * Finds the correct executable file inside an engine directory.
  * Works for:
@@ -129,7 +185,7 @@ async function findEngineExecutable(
 ): Promise<string | null> {
   const files = await fs.readdir(engineFolder, { withFileTypes: true });
 
-  // 1️⃣ Check for Windows .exe
+
   const exeFile = files.find(
     (f) => f.isFile() && f.name.toLowerCase().endsWith(".exe")
   );
