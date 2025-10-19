@@ -12,7 +12,3 @@ run/main_scene="res://scenes/main.tscn"
 window/stretch/mode="viewport"
 window/stretch/scale_mode="integer"
 window/handheld/orientation=1
-
-[rendering]
-
-renderer/rendering_method="mobile"
