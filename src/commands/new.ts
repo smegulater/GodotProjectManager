@@ -56,7 +56,9 @@ export async function newProject() {
 
   //Step 5: Set .gpmrc
   process.chdir(projectDir);
-  await useEngine(answers.language === "mono" ? answers.engine : `${answers.engine}-mono`);
+  await useEngine(
+    answers.language === "mono" ? answers.engine : `${answers.engine}-mono`
+  );
 
   console.log(
     chalk.green(`\n🎉 Project '${answers.name}' created successfully!`)
@@ -200,16 +202,31 @@ async function CreateGodotProject(projectDir: string, answers: Answers) {
   let templatePath: string = "";
   switch (answers.renderingTemplate) {
     case "Desktop":
-      templatePath = path.join(__dirname,"..", "templates", "desktop.project.godot");
+      templatePath = path.join(
+        __dirname,
+        "..",
+        "templates",
+        "desktop.project.godot"
+      );
       break;
     case "Mobile":
-      templatePath = path.join(__dirname,"..", "templates", "mobile.project.godot");
+      templatePath = path.join(
+        __dirname,
+        "..",
+        "templates",
+        "mobile.project.godot"
+      );
       break;
     case "Web":
-      templatePath = path.join(__dirname,"..", "templates", "web.project.godot");
+      templatePath = path.join(
+        __dirname,
+        "..",
+        "templates",
+        "web.project.godot"
+      );
       break;
     default:
-      templatePath = path.join(__dirname,"..", "templates", "project.godot");
+      templatePath = path.join(__dirname, "..", "templates", "project.godot");
       break;
   }
   let godotFile = await fs.readFile(templatePath, "utf8");

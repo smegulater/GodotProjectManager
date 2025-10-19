@@ -13,32 +13,33 @@ export async function initProject() {
 
   // Ask user for basic info
   const answers = await inquirer.prompt([
-      {
+    {
       type: "input",
       name: "name",
       message: "Project name:",
       default: "my-godot-project",
-      validate: (input: string) => !!input.trim() || "Project name cannot be empty."
+      validate: (input: string) =>
+        !!input.trim() || "Project name cannot be empty.",
     },
     {
       type: "input",
       name: "engine",
       message: "Godot version:",
-      default: "4.3"
+      default: "4.3",
     },
     {
       type: "list",
       name: "template",
       message: "Project template:",
       choices: ["2D", "3D"],
-      default: "2D"
+      default: "2D",
     },
     {
       type: "input",
       name: "description",
       message: "Project description:",
-      default: "A new Godot project"
-    }
+      default: "A new Godot project",
+    },
   ]);
 
   const projectDir = path.resolve(process.cwd(), answers.name);
@@ -50,8 +51,8 @@ export async function initProject() {
         name: "overwrite",
         type: "confirm",
         message: `Directory "${answers.name}" already exists. Overwrite?`,
-        default: false
-      }
+        default: false,
+      },
     ]);
     if (!overwriteAnswer.overwrite) {
       console.log(chalk.red("✖ Aborted."));
@@ -71,7 +72,7 @@ export async function initProject() {
     "project/tests",
     "project/addons",
     "build",
-    "scripts"
+    "scripts",
   ];
 
   for (const folder of structure) {
@@ -86,10 +87,12 @@ export async function initProject() {
     description: answers.description,
     createdAt: new Date().toISOString(),
     author: process.env.USER || process.env.USERNAME || "Unknown",
-    version: "0.1.0"
+    version: "0.1.0",
   };
 
-  await fs.writeJson(path.join(projectDir, "gpm.json"), gpmConfig, { spaces: 2 });
+  await fs.writeJson(path.join(projectDir, "gpm.json"), gpmConfig, {
+    spaces: 2,
+  });
 
   console.log(chalk.green("✅ Project folder structure created"));
 
