@@ -1,10 +1,11 @@
 {
   "name": "my-godot-project",
   "description": "A new Godot project generated with GPM",
-  "engine": "4.5.1",
-  "template": "2d",
-  "language": "mono",
   "author": "smegulater",
-  "createdAt": "2025-10-19T01:06:01.657Z",
-  "version": "0.1.0"
+  "engine": "4.5.1",
+  "renderer": "Desktop",
+  "language": "mono",
+  "template": "2d",
+  "createdAt": "2025-10-19T01:10:23.625Z",
+  "version": "1.0.0"
 }
