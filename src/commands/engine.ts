@@ -45,7 +45,6 @@ export async function installEngine(
   const projectDir = process.cwd();
   const enginesPath = getEngineDir();
 
-// 🧩 Try to auto-detect version & mono if not provided
   if (!version) {
     const gpmrcPath = path.join(projectDir, ".gpmrc");
     const gpmJsonPath = path.join(projectDir, "gpm.json");
@@ -61,30 +60,20 @@ export async function installEngine(
     } else {
       console.log(chalk.red("❌ No version specified and no project config found."));
       console.log(chalk.gray("Run inside a GPM project folder or provide a version manually."));
+      process.exitCode = 1;
       return;
     }
   }
-if (!version) {
-    console.log(chalk.red("❌ Unable to determine engine version."));
-    return;
-  }
 
-  // ✅ Default mono flag to false if still undefined
   mono = mono ?? false;
 
-  if (await checkForExistingInstallation(enginesPath, version, mono)) return;
+  if (await checkForExistingInstallation(enginesPath, version!, mono)) return;
 
   const spinner = ora(`Installing Godot ${version} (${flavor})...`).start();
-  try {
-    const extractDir = path.join(
-      enginesPath,
-      `${version}${mono ? "-mono" : ""}`
-    );
 
-    // Otherwise, continue with download
-    let slug = "";
-    let platformParam = "";
-    let fileName = "";
+  try {
+    const extractDir = path.join(enginesPath, `${version}${mono ? "-mono" : ""}`);
+    let slug = "", platformParam = "", fileName = "";
 
     const platform = process.platform;
     if (platform === "win32") {
@@ -104,14 +93,13 @@ if (!version) {
       platformParam = "linux.64";
       fileName = mono
         ? `Godot_v${version}_${flavor}_mono_linux_x86_64.zip`
-        : `Godot_v${version}_${flavor}_linux.x86_64.zip`;
+        : `Godot_v${version}_${flavor}_linux_x86_64.zip`;
     }
 
     const url = `https://downloads.godotengine.org/?version=${version}&flavor=${flavor}&slug=${slug}&platform=${platformParam}`;
     const destZip = path.join(enginesPath, fileName);
 
-    spinner.text = chalk.cyan(`⬇ Downloading Godot ${version} (${flavor})...`);
-
+    spinner.text = chalk.cyan(`⬇ Downloading Godot ${version}${mono ? " (Mono)" : ""}...`);
     await downloadFile(url, destZip);
 
     spinner.text = "Extracting engine...";
@@ -121,18 +109,22 @@ if (!version) {
     zip.extractAllTo(extractDir, true);
     await fs.remove(destZip);
 
-    spinner.succeed(
-      chalk.green(
-        `Godot ${version}${mono ? " (Mono)" : ""} installed successfully!`
-      )
-    );
+    spinner.succeed(chalk.green(`Godot ${version}${mono ? " (Mono)" : ""} installed successfully!`));
     console.log(chalk.gray(`→ Installed at: ${extractDir}`));
+
   } catch (err: any) {
-    spinner.fail(
-      chalk.red(`Failed to install Godot ${version}: ${err.message}`)
-    );
+    spinner.fail(chalk.red(`Failed to install Godot ${version}: ${err.message}`));
+
+    // 🧹 Make sure spinner is stopped and process terminates
+    spinner.stop();
+    process.exitCode = 1; // mark command as failed
+  } finally {
+    // 🧹 Ensure no spinners or open handles left alive
+    spinner.stop();
+    setTimeout(() => process.exit(process.exitCode ?? 0), 50);
   }
 }
+
 
 export async function uninstallEngine() {
   const enginesPath = getEngineDir();
@@ -148,7 +140,7 @@ export async function uninstallEngine() {
       type: "list",
       name: "version",
       message: "Engine version to uninstall:",
-      choices: installedEngines
+      choices: installedEngines,
     },
   ]);
 

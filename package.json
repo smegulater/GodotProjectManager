@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
+    "postbuild": "copyfiles -u 1 src/templates/**/* dist/",
     "postinstall": "node scripts/setup.js"
   },
   "repository": {
@@ -39,6 +40,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.9",
     "@types/node": "^24.8.1",
+    "copyfiles": "^2.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

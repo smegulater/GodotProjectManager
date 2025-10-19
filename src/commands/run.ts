@@ -103,11 +103,14 @@ export async function runProject(mode: "default" | "test" = "default") {
       );
     } else {
       console.log(chalk.cyan(`🚀 Launching Godot ${engineVersion}...`));
-      await execa(exePath, ["-e", "--path", projectDir], {
-        detached: true, // detach from parent
-        stdio: "ignore", // ignore I/O so Node can exit
-        windowsHide: true, // prevent new console window on Windows
+      const subprocess = execa(exePath, ["-e", "--path", projectDir], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
       });
+
+      subprocess.unref();
+      console.log(chalk.green("🚀 Godot editor launched!"));
     }
   } catch (err: any) {
     console.log(chalk.red(`❌ Failed to run Godot: ${err.message}`));

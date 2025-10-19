@@ -1,11 +1,9 @@
 import fs from "fs-extra";
 import https from "https";
-import chalk from "chalk";
 import { URL } from "url";
 
 export async function downloadFile(url: string, dest: string): Promise<void> {
-  console.log(chalk.cyan(`⬇️  Downloading:`));
-  console.log(chalk.gray(`   ${url}\n`));
+
 
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest);
@@ -25,8 +23,6 @@ export async function downloadFile(url: string, dest: string): Promise<void> {
           response.headers.location
         ) {
           const redirectUrl = new URL(response.headers.location, link).toString();
-          console.log(chalk.yellow(`↪ Redirecting to:`));
-          console.log(chalk.gray(`   ${truncate(redirectUrl)}`));
           response.resume(); // prevent hanging sockets
           fetch(redirectUrl, depth + 1);
           return;
@@ -50,8 +46,10 @@ export async function downloadFile(url: string, dest: string): Promise<void> {
   });
 }
 
+/*
 function truncate(str: string, maxLength = 110){
   return str.length > maxLength ?
     str.slice(0,maxLength-3)+ "..." :
     str;
 }
+    */

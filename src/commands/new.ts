@@ -5,17 +5,20 @@ import chalk from "chalk";
 import { installEngine } from "./engine.js";
 import { useEngine } from "./use.js";
 
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function newProject() {
   // Step 1: run wizard to get required data
   const answers = await ServeWizard();
 
   const projectDir = path.resolve(process.cwd(), answers.name);
-  
+
   // Step 2: Handle overwrite
   await HandleProjectOverwrite(projectDir, answers);
-  
+
   //Step 3: Build project
   console.log("\n");
   console.log(chalk.cyan("⌛ Generating project..."));
@@ -25,13 +28,13 @@ export async function newProject() {
 
   await CreateGpmJson(projectDir, answers);
   console.log(chalk.green("Default gpm.json file created"));
-  
+
   await CreateGodotProject(projectDir, answers);
   console.log(chalk.green("Default project.godot file created"));
-  
+
   await createDefaultScene(path.join(projectDir, "project"), answers.template);
   console.log(chalk.green("Default scene: scenes/main.tscn created"));
-  
+
   //Step 3: (Optional) Git init
   if (answers.gitInit) {
     await InitGit(projectDir, answers);
@@ -53,8 +56,8 @@ export async function newProject() {
 
   //Step 5: Set .gpmrc
   process.chdir(projectDir);
-  await useEngine(answers.engine);
- 
+  await useEngine(answers.language === "mono" ? answers.engine : `${answers.engine}-mono`);
+
   console.log(
     chalk.green(`\n🎉 Project '${answers.name}' created successfully!`)
   );
@@ -66,19 +69,17 @@ export async function newProject() {
   console.log(`  gpm run test   (run test build)\n`);
 }
 
-
-
 async function CreateGpmJson(projectDir: string, answers: Answers) {
-  
   const gpmConfig = {
     name: answers.name,
     description: answers.description,
-    engine: answers.engine,
-    template: answers.template.toLowerCase(),
-    language: answers.language.includes("C#") ? "mono" : "gdscript",
     author: process.env.USER || process.env.USERNAME || "Unknown",
+    engine: answers.engine,
+    renderer: answers.renderingTemplate,
+    language: answers.language.includes("C#") ? "mono" : "gdscript",
+    template: answers.template.toLowerCase(),
     createdAt: new Date().toISOString(),
-    version: "0.1.0",
+    version: answers.version,
   };
   await fs.writeJson(path.join(projectDir, "gpm.json"), gpmConfig, {
     spaces: 2,
@@ -119,7 +120,13 @@ async function ServeWizard() {
       type: "input",
       name: "description",
       message: "Description:",
-      default: "A new Godot project",
+      default: "A new Godot project generated with GPM",
+    },
+    {
+      type: "input",
+      name: "version",
+      message: "Version:",
+      default: "1.0.0",
     },
     {
       type: "list",
@@ -127,6 +134,13 @@ async function ServeWizard() {
       message: "Project template:",
       choices: ["2D", "3D"],
       default: "2D",
+    },
+    {
+      type: "list",
+      name: "renderingTemplate",
+      message: "rendering Template:",
+      choices: ["Desktop", "Mobile", "Web"],
+      default: "Desktop",
     },
     {
       type: "list",
@@ -176,30 +190,42 @@ async function HandleProjectOverwrite(projectDir: string, answers: Answers) {
     ]);
     if (!confirm.overwrite) {
       console.log(chalk.red("❌ Project creation canceled."));
-      return;
+      process.exit(2);
     }
     await fs.remove(projectDir);
   }
 }
 
 async function CreateGodotProject(projectDir: string, answers: Answers) {
-  // Basic Godot project file
-  const godotFile = [
-    "[gd_project]",
-    "config_version=5",
-    "",
-    "[application]",
-    `config/name="${answers.name}"`,
-    'run/main_scene="res://scenes/main.tscn"',
-  ].join("\n");
+  let templatePath: string = "";
+  switch (answers.renderingTemplate) {
+    case "Desktop":
+      templatePath = path.join(__dirname,"..", "templates", "desktop.project.godot");
+      break;
+    case "Mobile":
+      templatePath = path.join(__dirname,"..", "templates", "mobile.project.godot");
+      break;
+    case "Web":
+      templatePath = path.join(__dirname,"..", "templates", "web.project.godot");
+      break;
+    default:
+      templatePath = path.join(__dirname,"..", "templates", "project.godot");
+      break;
+  }
+  let godotFile = await fs.readFile(templatePath, "utf8");
 
-  await fs.writeFile(
-    path.join(projectDir, "project", "project.godot"),
-    godotFile
-  );
+  // Replace placeholders
+  godotFile = godotFile
+    .replace("{{PROJECT_NAME}}", answers.name)
+    .replace("{{PROJECT_DESCRIPTION}}", answers.description)
+    .replace("{{PROJECT_VERSION}}", answers.version);
+
+  // Write to destination
+  const outputPath = path.join(projectDir, "project", "project.godot");
+  await fs.writeFile(outputPath, godotFile);
 }
 
-async function createDefaultScene(projectPath: string, template:string ) {
+async function createDefaultScene(projectPath: string, template: string) {
   const sceneDir = path.join(projectPath, "scenes");
   const sceneFile = path.join(sceneDir, "main.tscn");
   await fs.ensureDir(sceneDir);
@@ -285,8 +311,6 @@ async function InitGit(projectDir: string, answers: Answers) {
       console.log(chalk.green("Initialized Git lfs"));
     }
   } catch {
-    console.log(
-      chalk.yellow("⚠️  Git not available, skipping repo creation.")
-    );
+    console.log(chalk.yellow("⚠️  Git not available, skipping repo creation."));
   }
 }
