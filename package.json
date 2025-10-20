@@ -1,5 +1,5 @@
 {
-  "name": "godotprojectmanager",
+  "name": "godot-project-manager",
   "description": "A npm based Godot Project Manager - provides opinionated project setup and managemenet utilities ",
   "version": "0.1.0",
   "type": "module",
@@ -30,6 +30,7 @@
     "commander": "^14.0.1",
     "execa": "^9.6.0",
     "fs-extra": "^11.3.2",
+    "ini": "^5.0.0",
     "inquirer": "^12.10.0",
     "node-fetch": "^3.3.2",
     "ora": "^9.0.0"
