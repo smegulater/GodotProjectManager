@@ -2,118 +2,141 @@ import inquirer from "inquirer";
 import fs from "fs-extra";
 import path from "path";
 import chalk from "chalk";
-
-//import { fileURLToPath } from "url";
-//const __filename = fileURLToPath(import.meta.url);
-//const __dirname = path.dirname(__filename);
+import { installEngine } from "./engine.js";
+import { useEngine } from "./use.js";
 
 export async function initProject() {
-  console.log(chalk.cyan("\n🚀 Welcome to Godot Project Manager (GPM)"));
-  console.log(chalk.gray("Let's set up your new Godot project.\n"));
+  console.clear();
+  console.log(chalk.cyan("\n✨ GPM Project Initializer ✨"));
+  console.log(chalk.gray("Setting up GPM for an existing Godot project...\n"));
 
-  // Ask user for basic info
+  const cwd = process.cwd();
+  const godotFile = path.join(cwd, "project.godot");
+  
+  if(! await serveWarning()) return;
+  
+  // Step 1: detect Godot project
+  if (!(await fs.pathExists(godotFile))) {
+    console.log(chalk.red("No 'project.godot' found in this directory."));
+    console.log(chalk.gray("Please run this inside an existing Godot project."));
+    return;
+  }
+
+  // Step 2: ask for project details
   const answers = await inquirer.prompt([
     {
       type: "input",
       name: "name",
       message: "Project name:",
-      default: "my-godot-project",
-      validate: (input: string) =>
-        !!input.trim() || "Project name cannot be empty.",
+      default: path.basename(cwd),
     },
     {
       type: "input",
-      name: "engine",
-      message: "Godot version:",
-      default: "4.3",
+      name: "description",
+      message: "Description:",
+      default: "An existing Godot project",
     },
     {
       type: "list",
       name: "template",
       message: "Project template:",
       choices: ["2D", "3D"],
-      default: "2D",
+      default: "3D",
+    },
+    {
+      type: "list",
+      name: "language",
+      message: "Programming language:",
+      choices: ["GDScript", "C# (Mono)"],
+      default: "GDScript",
     },
     {
       type: "input",
-      name: "description",
-      message: "Project description:",
-      default: "A new Godot project",
+      name: "engine",
+      message: "Godot version:",
+      default: "4.5.1",
+    },
+    {
+      type: "confirm",
+      name: "autoInstall",
+      message: "Install engine if missing?",
+      default: true,
+    },
+    {
+      type: "confirm",
+      name: "gitInit",
+      message: "Initialize Git repository?",
+      default: false,
     },
   ]);
 
-  const projectDir = path.resolve(process.cwd(), answers.name);
-  const projectPath = path.join(projectDir, "project");
-
-  if (fs.existsSync(projectDir)) {
-    const overwriteAnswer = await inquirer.prompt([
-      {
-        name: "overwrite",
-        type: "confirm",
-        message: `Directory "${answers.name}" already exists. Overwrite?`,
-        default: false,
-      },
-    ]);
-    if (!overwriteAnswer.overwrite) {
-      console.log(chalk.red("✖ Aborted."));
-      return;
-    }
-    await fs.remove(projectDir);
-  }
-
-  console.log(chalk.cyan("📁 Creating project folder structure..."));
-
-  // Folder structure
-  const structure = [
-    "engine",
-    "project/src",
-    "project/scenes",
-    "project/assets",
-    "project/tests",
-    "project/addons",
-    "build",
-    "scripts",
-  ];
-
-  for (const folder of structure) {
-    await fs.ensureDir(path.join(projectDir, folder));
-  }
-
-  // Write gpm.json metadata
+  // Step 3: Create gpm.json
   const gpmConfig = {
     name: answers.name,
+    description: answers.description,
     engine: answers.engine,
     template: answers.template.toLowerCase(),
-    description: answers.description,
-    createdAt: new Date().toISOString(),
+    language: answers.language.includes("C#") ? "mono" : "gdscript",
     author: process.env.USER || process.env.USERNAME || "Unknown",
+    createdAt: new Date().toISOString(),
     version: "0.1.0",
   };
 
-  await fs.writeJson(path.join(projectDir, "gpm.json"), gpmConfig, {
-    spaces: 2,
-  });
+  await fs.writeJson(path.join(cwd, "gpm.json"), gpmConfig, { spaces: 2 });
 
-  console.log(chalk.green("✅ Project folder structure created"));
+  // Step 4: Create .gpmrc
+  const gpmrc = {
+    engineVersion: answers.engine,
+    mono: answers.language.includes("C#"),
+  };
+  await fs.writeJson(path.join(cwd, ".gpmrc"), gpmrc, { spaces: 2 });
 
-  // Create dummy Godot project.godot file
-  const projectGodotPath = path.join(projectPath, "project.godot");
-  const godotTemplate = `[gd_project]
-config_version=5
+  console.log(chalk.green("✅ Configuration files created."));
 
-[application]
-config/name="${answers.name}"
-run/main_scene="res://scenes/main.tscn"
-`;
+  // Step 5: Install & link engine
+  if (answers.autoInstall) {
+    await installEngine({mono: gpmrc.mono, isNew: false, installVersion:answers.engine});
+  }
 
-  await fs.writeFile(projectGodotPath, godotTemplate);
-  console.log(chalk.green("✅ Created project.godot"));
+  await useEngine(answers.engine);
+  console.log(chalk.green(`✔ Engine ${answers.engine} linked to project.`));
 
-  // Done
-  console.log(chalk.cyan("\n🎉 Project initialized successfully!"));
-  console.log(chalk.gray(`Location: ${projectDir}`));
+  // Step 6: Optional Git setup
+  if (answers.gitInit) {
+    try {
+      const { execa } = await import("execa");
+      await execa("git", ["init"], { cwd });
+      await execa("git", ["add", "."], { cwd });
+      await execa("git", ["commit", "-m", "Initialize GPM project"], { cwd });
+      console.log(chalk.green("✅ Initialized Git repository"));
+    } catch {
+      console.log(chalk.yellow("⚠️  Git not available, skipping repo setup."));
+    }
+  }
+
+  console.log(chalk.green("\n🎉 GPM successfully initialized!"));
+  console.log(chalk.gray(`Project: ${answers.name}`));
+  console.log(chalk.gray(`Location: ${cwd}`));
   console.log(chalk.green("\nNext steps:"));
-  console.log(`  cd ${answers.name}`);
-  console.log(`  gpm engine install ${answers.engine}`);
-  console.log(`  gpm run\n`);
+  console.log("  gpm run");
+  console.log("  gpm run test\n");
+}
+
+
+async function serveWarning() {
+console.log(chalk.yellow.bold('\n⚠️  WARNING:'));
+console.log(chalk.yellow('Before continuing, please make sure you:'));
+console.log(chalk.yellow(' - Have created a backup of your project.'));
+console.log(chalk.yellow(' - Have closed Godot completely.\n'));
+
+const { confirmContinue } = await inquirer.prompt([
+  {
+    type: 'confirm',
+    name: 'confirmContinue',
+    message: 'Do you want to continue?',
+    default: false,
+  },
+]);
+
+return confirmContinue;
 }

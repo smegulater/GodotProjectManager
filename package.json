@@ -1,11 +1,19 @@
 {
   "name": "godotprojectmanager",
+  "description": "A npm based Godot Project Manager - provides opinionated project setup and managemenet utilities ",
   "version": "0.1.0",
   "type": "module",
-  "bin": {
-    "gpm": "./dist/index.js"
+  "author": "George Chambers (smegulater)",
+  "license": "MIT",
+  "keywords": [
+    "Godot",
+    "Package",
+    "Manager"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smegulater/GodotProjectManager"
   },
-  "description": "A npm based Godot Project Manager - provides opinionated project setup and managemenet utilities ",
   "main": "index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",
@@ -13,17 +21,9 @@
     "postbuild": "copyfiles -u 1 src/templates/**/* dist/",
     "postinstall": "node scripts/setup.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "godotprojectmanager"
+  "bin": {
+    "gpm": "./dist/index.js"
   },
-  "keywords": [
-    "Godot",
-    "Package",
-    "Manager"
-  ],
-  "author": "George Chambers",
-  "license": "UNLICENSED",
   "dependencies": {
     "adm-zip": "^0.5.16",
     "chalk": "^5.6.2",
@@ -31,6 +31,7 @@
     "execa": "^9.6.0",
     "fs-extra": "^11.3.2",
     "inquirer": "^12.10.0",
+    "node-fetch": "^3.3.2",
     "ora": "^9.0.0"
   },
   "devDependencies": {
@@ -40,6 +41,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.9",
     "@types/node": "^24.8.1",
+    "@types/node-fetch": "^2.6.13",
     "copyfiles": "^2.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
