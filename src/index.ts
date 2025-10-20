@@ -53,12 +53,14 @@ const engine = program
 engine
   .command("install")
   .description("Install a specific or project-defined Godot engine")
-  .option("--flavor <type>", "Engine flavor (stable, rc, beta)", "stable")
-  .option("--mono", "Install Mono (C#) version", false)
-  .action(async (version, options) => {
-    const flavor = options.flavor || "stable";
+  .option('--n|--new','--new',false)
+  .option('-m|--mono','--mono',false)
+  .action(async (options) => {
+    // Commander gives you options as an instance of CommandOptions, so extract flags
+    const isNew = !!options.new;
     const mono = !!options.mono;
-    await installEngine(version, flavor, mono);
+
+    await installEngine({ mono, isNew });
   });
 
 engine.command("uninstall").action(uninstallEngine);

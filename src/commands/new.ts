@@ -1,11 +1,14 @@
 import inquirer, { type Answers } from "inquirer";
+import { fileURLToPath } from "url";
+import { execa } from "execa";
+import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
-import chalk from "chalk";
+
 import { installEngine } from "./engine.js";
 import { useEngine } from "./use.js";
-
-import { fileURLToPath } from "url";
+import { jsonToConfig } from "../utils/jsonToConfig.js";
+import { getGodotVersions, GodotReleaseType } from "../utils/godotVersions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,33 +37,26 @@ export async function newProject() {
 
   await createDefaultScene(path.join(projectDir, "project"), answers.template);
   console.log(chalk.green("Default scene: scenes/main.tscn created"));
+  //Step 5: Set .gpmrc
+  process.chdir(projectDir);
 
   //Step 3: (Optional) Git init
   if (answers.gitInit) {
     await InitGit(projectDir, answers);
-    console.log(chalk.green("Git initialised"));
   }
 
-  //Step 4: (Optional) Auto-install engine
-  if (answers.autoInstall) {
-    const mono = answers.language.includes("C#");
-    console.log(
-      chalk.cyan(
-        `Checking for Godot ${answers.engine} (${
-          mono ? "Mono" : "GDScript"
-        })...`
-      )
-    );
-    await installEngine(answers.engine, "stable", mono);
-  }
+  //Step 4: Auto-install engine
+  const mono = answers.renderingTemplate.mono;
+  console.log(
+    chalk.cyan(
+      `Checking for Godot ${answers.engine} (${mono ? "Mono" : "GDScript"})...`
+    )
+  );
+  await installEngine({mono: mono, isNew: false, installVersion: answers.engine});
 
-  //Step 5: Set .gpmrc
-  process.chdir(projectDir);
   try {
     await useEngine(
-      answers.language === "GDScript"
-        ? answers.engine
-        : `${answers.engine}-mono`
+      answers.renderingTemplate.mono ? `${answers.engine}-mono` : answers.engine
     );
   } catch (error: any) {
     chalk.red(
@@ -84,12 +80,13 @@ async function CreateGpmJson(projectDir: string, answers: Answers) {
     name: answers.name,
     description: answers.description,
     author: process.env.USER || process.env.USERNAME || "Unknown",
-    engine: answers.engine,
-    renderer: answers.renderingTemplate,
-    language: answers.language.includes("C#") ? "mono" : "gdscript",
+    version: answers.version,
+    engineVersion: answers.engine,
+    renderer: answers.renderingTemplate.renderer,
+    language: answers.renderingTemplate.mono ? "mono" : "gdscript",
     template: answers.template.toLowerCase(),
     createdAt: new Date().toISOString(),
-    version: answers.version,
+    buildTemplate: answers.renderingTemplate.name,
   };
   await fs.writeJson(path.join(projectDir, "gpm.json"), gpmConfig, {
     spaces: 2,
@@ -116,6 +113,41 @@ async function ServeWizard() {
     chalk.cyan("\n✨ Welcome to the Godot Project Manager Wizard! ✨")
   );
   console.log(chalk.gray("\tLet’s create a new project step-by-step.\n"));
+
+  const templateDir: string = path.join(
+    __dirname,
+    "..",
+    "templates",
+    "projects"
+  );
+  const templateFiles = await fs
+    .readdirSync(templateDir)
+    .filter((f) => f.includes("template") && f.endsWith(".json"));
+
+  const templates = templateFiles.map((file) => {
+    const fullPath = path.join(templateDir, file);
+    const json = JSON.parse(fs.readFileSync(fullPath, "utf-8"));
+    return {
+      file,
+      fullPath,
+      ...json,
+    };
+  });
+
+  // build inquirer choices
+  const templateChoices = templates.map((t) => ({
+    name: `${t.name}\n    ${t.description || "No description"}`,
+    short: t.name,
+    value: t,
+  }));
+
+  //get available versions
+  const godotVersions = await getGodotVersions(GodotReleaseType.Stable).catch(
+    (err) => {
+      console.error("❌ Failed to fetch versions:", err);
+      process.exit(1);
+    }
+  );
 
   const answers: Answers = await inquirer.prompt([
     {
@@ -149,21 +181,13 @@ async function ServeWizard() {
       type: "list",
       name: "renderingTemplate",
       message: "rendering Template:",
-      choices: ["Desktop", "Mobile", "Web"],
-      default: "Desktop",
+      choices: templateChoices,
     },
     {
       type: "list",
-      name: "language",
-      message: "Programming language:",
-      choices: ["GDScript", "C# (Mono)"],
-      default: "GDScript",
-    },
-    {
-      type: "input",
       name: "engine",
       message: "Godot version:",
-      default: "4.5.1",
+      choices: godotVersions,
     },
     {
       type: "confirm",
@@ -207,47 +231,23 @@ async function HandleProjectOverwrite(projectDir: string, answers: Answers) {
 }
 
 async function CreateGodotProject(projectDir: string, answers: Answers) {
-  let templatePath: string = "";
-  switch (answers.renderingTemplate) {
-    case "Desktop":
-      templatePath = path.join(
-        __dirname,
-        "..",
-        "templates",
-        "desktop.project.godot"
-      );
-      break;
-    case "Mobile":
-      templatePath = path.join(
-        __dirname,
-        "..",
-        "templates",
-        "mobile.project.godot"
-      );
-      break;
-    case "Web":
-      templatePath = path.join(
-        __dirname,
-        "..",
-        "templates",
-        "web.project.godot"
-      );
-      break;
-    default:
-      templatePath = path.join(__dirname, "..", "templates", "project.godot");
-      break;
+  const appConfig = answers.renderingTemplate.config.application;
+
+  for (const key of Object.keys(appConfig)) {
+    const value = appConfig[key];
+
+    if (typeof value === "string") {
+      appConfig[key] = value
+        .replace(/{{PROJECT_NAME}}/g, answers.name)
+        .replace(/{{PROJECT_DESCRIPTION}}/g, answers.description)
+        .replace(/{{PROJECT_VERSION}}/g, answers.version);
+    }
   }
-  let godotFile = await fs.readFile(templatePath, "utf8");
 
-  // Replace placeholders
-  godotFile = godotFile
-    .replace("{{PROJECT_NAME}}", answers.name)
-    .replace("{{PROJECT_DESCRIPTION}}", answers.description)
-    .replace("{{PROJECT_VERSION}}", answers.version);
+  // Generate config text
+  const output = jsonToConfig(answers.renderingTemplate.config);
 
-  // Write to destination
-  const outputPath = path.join(projectDir, "project", "project.godot");
-  await fs.writeFile(outputPath, godotFile);
+  await fs.writeFile(path.join(projectDir, "project", "project.godot"), output);
 }
 
 async function createDefaultScene(projectPath: string, template: string) {
@@ -273,69 +273,46 @@ async function createDefaultScene(projectPath: string, template: string) {
 }
 
 async function InitGit(projectDir: string, answers: Answers) {
+  const templateDir = path.join(__dirname, "..", "templates");
+
+  const gitIgnore = JSON.parse(
+    await fs.readFileSync(
+      path.join(templateDir, "gitIgnore.template.json"),
+      "utf-8"
+    )
+  );
+  const gitAttr = JSON.parse(
+    await fs.readFileSync(
+      path.join(templateDir, "gitAttributes.template.json"),
+      "utf-8"
+    )
+  );
+
   try {
-    await fs.writeFile(path.join(projectDir, ".gitattributes"), "");
+    //write config files
+    await fs.writeFile(
+      path.join(projectDir, ".gitattributes"),
+      gitAttr.join("\n")
+    );
     // .gitignore
     await fs.writeFile(
       path.join(projectDir, ".gitignore"),
-      [
-        "### Godot ###",
-        "# Godot 4+ specific ignores",
-        ".godot/",
-        "",
-        "# Godot-specific ignores",
-        ".import/",
-        "export.cfg",
-        "export_presets.cfg",
-        "",
-        "# Imported translations (automatically generated from CSV files)",
-        "*.translation",
-        "",
-        "# Mono-specific ignores",
-        ".mono/",
-        "data_*/",
-        "mono_crash.*.json",
-      ].join("\n") + "\n"
+      gitIgnore.join("\n")
     );
 
-    const { execa } = await import("execa");
+    await execa("git", ["init"], { cwd: projectDir });
+
+    if (answers.gitInitLfs) {
+      await execa("git", ["lfs", "install"], { cwd: projectDir });
+
+      console.log(chalk.green("Initialized Git lfs"));
+    }
     await execa("git", ["add", "."], { cwd: projectDir });
-    await execa("git", ["commit", "-m", "Init Git LFS"], {
+    await execa("git", ["commit", "-m", "Initial Commit"], {
       cwd: projectDir,
     });
     console.log(chalk.green("Initialized Git repository"));
-    if (answers.gitInitLfs) {
-      await execa("git", ["lfs", "install"], { cwd: projectDir });
-      await fs.appendFile(
-        path.join(projectDir, ".gitattributes"),
-        [
-          "# Godot binary resources",
-          "*.res filter=lfs diff=lfs merge=lfs -text",
-          "*.tres filter=lfs diff=lfs merge=lfs -text",
-          "",
-          "# Godot imported assets (optional)",
-          "*.import filter=lfs diff=lfs merge=lfs -text",
-          "",
-          "# 3D and image assets",
-          "*.png filter=lfs diff=lfs merge=lfs -text",
-          "*.jpg filter=lfs diff=lfs merge=lfs -text",
-          "*.jpeg filter=lfs diff=lfs merge=lfs -text",
-          "*.tga filter=lfs diff=lfs merge=lfs -text",
-          "*.webp filter=lfs diff=lfs merge=lfs -text",
-          "*.glb filter=lfs diff=lfs merge=lfs -text",
-          "*.fbx filter=lfs diff=lfs merge=lfs -text",
-          "*.blend filter=lfs diff=lfs merge=lfs -text",
-          "",
-          "# Audio and video",
-          "*.wav filter=lfs diff=lfs merge=lfs -text",
-          "*.ogg filter=lfs diff=lfs merge=lfs -text",
-          "*.mp3 filter=lfs diff=lfs merge=lfs -text",
-          "*.mp4 filter=lfs diff=lfs merge=lfs -text",
-        ].join("\n") + "\n"
-      );
-      console.log(chalk.green("Initialized Git lfs"));
-    }
-  } catch {
-    console.log(chalk.yellow("⚠️  Git not available, skipping repo creation."));
+  } catch (err: any) {
+    console.log(chalk.yellow(`⚠️  Failed to init git -\n${err.message}`));
   }
 }

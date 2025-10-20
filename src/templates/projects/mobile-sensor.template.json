@@ -1,0 +1,27 @@
+{
+  "name": "Mobile Sensor",
+  "description": "Uses the compatability renderer and targets desktop, mobile + web platforms. Uses GDScript",
+  "mono": false,
+  "renderer": "Mobile",
+  "config": {
+    "config_version": 5,
+
+    "application": {
+      "config/name": "{{PROJECT_NAME}}",
+      "config/description": "{{PROJECT_DESCRIPTION}}",
+      "config/version": "{{PROJECT_VERSION}}",
+      "config/features": "PackedStringArray(\"4.5\", \"Mobile\")",
+      "run/main_scene": "res://scenes/main.tscn"
+    },
+    "display": {
+      "window/stretch/mode": "viewport",
+      "window/stretch/scale_mode": "integer",
+      "window/handheld/orientation": 6,
+      "window/size/viewport_width": 180,
+      "window/size/viewport_height": 320
+    },
+    "rendering": {
+      "renderer/rendering_method": "mobile"
+    }
+  }
+}

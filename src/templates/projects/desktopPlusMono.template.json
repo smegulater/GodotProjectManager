@@ -1,0 +1,25 @@
+{
+  "name": "Desktop+ C#",
+  "description": "Uses the forward+ renderer and targets desktop only. Uses C#/Mono",
+  "mono": true,
+  "renderer": "Forward Plus",
+  "config": {
+    "config_version": 5,
+    "application": {
+      "config/name": "{{PROJECT_NAME}}",
+      "config/description": "{{PROJECT_DESCRIPTION}}",
+      "config/version": "{{PROJECT_VERSION}}",
+      "config/features": "PackedStringArray(\"4.5\", \"Forward Plus\")",
+      "run/main_scene": "res://scenes/main.tscn"
+    },
+    "display": {
+      "window/stretch/mode": "viewport",
+      "window/stretch/scale_mode": "integer",
+      "window/size/viewport_width": 1280,
+      "window/size/viewport_height": 720
+    },
+    "dotnet": {
+      "project/assembly_name": "{{PROJECT_NAME}}"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import AdmZip from "adm-zip";
 import inquirer, { type Answers } from "inquirer";
 
 import { downloadFile } from "../utils/download.js";
+import { getGodotVersions, GodotReleaseType } from "../utils/godotVersions.js";
 
 //import { fileURLToPath } from "url";
 //const __filename = fileURLToPath(import.meta.url);
@@ -37,15 +38,42 @@ async function checkForExistingInstallation(
   return exists;
 }
 
-export async function installEngine(
-  version?: string,
-  flavor: "stable" | "rc" | "beta" = "stable",
-  mono?: boolean
-) {
-  const projectDir = process.cwd();
-  const enginesPath = getEngineDir();
+type InstallEngineOptions = {
+  mono: boolean;
+  isNew: boolean;
+  installVersion?: string;
+};
+export async function installEngine({
+  mono,
+  isNew,
+  installVersion,
+}: InstallEngineOptions) {
+  const projectDir: string = process.cwd();
+  const enginesPath: string = getEngineDir();
 
-  if (!version) {
+  let version: string = "";
+
+  if (isNew) {
+    //get available versions
+    const godotVersions = await getGodotVersions(GodotReleaseType.Stable).catch(
+      (err) => {
+        console.error("❌ Failed to fetch versions:", err);
+        process.exit(1);
+      }
+    );
+
+    const answers: Answers = await inquirer.prompt([
+      {
+        type: "list",
+        name: "engine",
+        message: "Godot version:",
+        choices: godotVersions,
+      },
+    ]);
+    version = answers.engine;
+  } else if (installVersion) {
+    version = installVersion ? installVersion : "";
+  } else {
     const gpmrcPath = path.join(projectDir, ".gpmrc");
     const gpmJsonPath = path.join(projectDir, "gpm.json");
 
@@ -58,12 +86,10 @@ export async function installEngine(
       version = gpmConfig.engine;
       mono = gpmConfig.language === "mono";
     } else {
-      console.log(
-        chalk.red("❌ No version specified and no project config found.")
-      );
+      console.log(chalk.red("No project config found. "));
       console.log(
         chalk.gray(
-          "Run inside a GPM project folder or provide a version manually."
+          "Run inside a GPM project folder or run with the --new flag to select a version."
         )
       );
       process.exitCode = 1;
@@ -71,10 +97,11 @@ export async function installEngine(
     }
   }
 
-  mono = mono ?? false;
-
-  if (await checkForExistingInstallation(enginesPath, version!, mono)) return;
-
+  const flavor: string = "stable";
+  if (await checkForExistingInstallation(enginesPath, version!, mono)) {
+    console.log(chalk.grey(`Godot ${version} ${flavor} already installed`));
+    return;
+  }
   const spinner = ora(`Installing Godot ${version} (${flavor})...`).start();
 
   try {
@@ -123,9 +150,7 @@ export async function installEngine(
     await fs.remove(destZip);
 
     spinner.succeed(
-      chalk.green(
-        `Godot ${version}${mono ? " (Mono)" : ""} installed successfully!`
-      )
+      chalk.green(`Godot ${version} ${flavor} installed successfully!`)
     );
     console.log(chalk.gray(`→ Installed at: ${extractDir}`));
   } catch (err: any) {
