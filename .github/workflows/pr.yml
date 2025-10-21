@@ -26,7 +26,7 @@ jobs:
      id: eslint
      continue-on-error: true
      run: |
-      npx eslint . --ext .js,.ts -f json -o eslint-report.json || true
+      npx eslint . --ext .js,.ts -f json -o eslint-report.json --max-warnings=0
 
    - name: Annotate ESLint results
      if: always()
