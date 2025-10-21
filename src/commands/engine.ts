@@ -3,7 +3,7 @@ import path from "path";
 import chalk from "chalk";
 import ora from "ora";
 import AdmZip from "adm-zip";
-
+import type { Answers } from "inquirer";
 
 import { downloadFile } from "../utils/download.js";
 
@@ -11,7 +11,6 @@ import {
   selectGodotVersionFromGodot,
   selectGodotVersionFromInstalled,
 } from "../prompts/answers.js";
-import type { Answers } from "inquirer";
 
 type InstallEngineOptions = {
   mono: boolean;
@@ -58,7 +57,6 @@ export async function installEngine({
       process.exitCode = 1;
   }
   
-
   if (await checkForExistingInstallation(enginesPath, version!, mono)) {
     console.log(chalk.grey(`Godot ${version} ${flavor} already installed`));
     return;
@@ -106,7 +104,7 @@ export async function installEngine({
     );
     await downloadFile(url, destZip);
 
-    spinner.text = "Extracting engine...";
+    spinner.text = chalk.cyan("Extracting engine...");
     await fs.ensureDir(extractDir);
 
     const zip = new AdmZip(destZip);
