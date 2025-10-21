@@ -1,4 +1,3 @@
-import fs from 'fs-extra';
 import chalk from 'chalk';
 import path from 'path';
 import inquirer, { type Answers } from 'inquirer';
@@ -6,11 +5,12 @@ import inquirer, { type Answers } from 'inquirer';
 import { getGodotVersions, GodotReleaseType } from '../utils/godotVersions.js';
 import { getTemplateChoices } from '../utils/choices.js';
 
+export async function serveInitWizard() {}
+
 export async function serveNewWizard() {
-    
-    console.log(chalk.cyan('\n✨ Welcome to the Godot Project Manager Wizard! ✨'));
+	console.log(chalk.cyan('\n✨ Welcome to the Godot Project Manager Wizard! ✨'));
 	console.log(chalk.gray('\tLet’s create a new project step-by-step.\n'));
-    
+
 	// build inquirer choices
 	const templateDir: string = path.join(__dirname, '..', 'templates', 'projects');
 	const templateChoices = await getTemplateChoices(templateDir);

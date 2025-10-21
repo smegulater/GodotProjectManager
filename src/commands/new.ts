@@ -1,4 +1,3 @@
-import inquirer, { type Answers } from 'inquirer';
 import { fileURLToPath } from 'url';
 import { execa } from 'execa';
 import chalk from 'chalk';
@@ -9,9 +8,12 @@ import { installEngine } from './engine.js';
 import { useEngine } from './use.js';
 import { jsonToConfig } from '../utils/jsonToConfig.js';
 import { serveNewWizard } from '../prompts/wizards.js';
+import type { GpmConfig } from '../types/gpmConfig.js';
+import { overwriteProject } from '../prompts/answers.js';
+import type { Answers } from 'inquirer';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFileName = fileURLToPath(import.meta.url);
+const CurrentDirectory = path.dirname(currentFileName);
 
 export async function newProject() {
 	// Step 1: run wizard to get required data
@@ -20,19 +22,19 @@ export async function newProject() {
 	const projectDir = path.resolve(process.cwd(), answers.name);
 
 	// Step 2: Handle overwrite
-	await HandleProjectOverwrite(projectDir, answers);
+	await handleProjectOverwrite(projectDir, answers);
 
 	//Step 3: Build project
 	console.log('\n');
 	console.log(chalk.cyan('⌛ Generating project...'));
 
-	await CreateFolderStructure(projectDir);
+	await createFolderStructure(projectDir);
 	console.log(chalk.green('Folder structure created'));
 
-	await CreateGpmJson(projectDir, answers);
+	await createGpmJson(projectDir, answers);
 	console.log(chalk.green('Default gpm.json file created'));
 
-	await CreateGodotProject(projectDir, answers);
+	await createGodotProject(projectDir, answers);
 	console.log(chalk.green('Default project.godot file created'));
 
 	await createDefaultScene(path.join(projectDir, 'project'), answers.template);
@@ -42,7 +44,7 @@ export async function newProject() {
 
 	//Step 3: (Optional) Git init
 	if (answers.gitInit) {
-		await InitGit(projectDir, answers);
+		await initGit(projectDir, answers);
 	}
 
 	//Step 4: Auto-install engine
@@ -51,8 +53,8 @@ export async function newProject() {
 
 	try {
 		await useEngine(answers.renderingTemplate.mono ? `${answers.engine}-mono` : answers.engine);
-	} catch (error: any) {
-		chalk.red(`Failed to set the engine for new project. Run 'gpm use' to set one `);
+	} catch {
+		chalk.red("Failed to set the engine for new project. Run 'gpm use' to set one ");
 	}
 
 	console.log(chalk.green(`\n🎉 Project '${answers.name}' created successfully!`));
@@ -60,12 +62,12 @@ export async function newProject() {
 	console.log(chalk.gray(`Location: ${projectDir}`));
 	console.log(chalk.green('\nNext steps:'));
 	console.log(`  cd ${answers.name}`);
-	console.log(`  gpm run        (launch project in Godot editor)`);
-	console.log(`  gpm run test   (run test build)\n`);
+	console.log('  gpm run        (launch project in Godot editor)');
+	console.log('  gpm run test   (run test build)\n');
 }
 
-async function CreateGpmJson(projectDir: string, answers: Answers) {
-	const gpmConfig = {
+async function createGpmJson(projectDir: string, answers: Answers) {
+	const gpmConfig: GpmConfig = {
 		name: answers.name,
 		description: answers.description,
 		author: process.env.USER || process.env.USERNAME || 'Unknown',
@@ -82,39 +84,26 @@ async function CreateGpmJson(projectDir: string, answers: Answers) {
 	});
 }
 
-async function CreateFolderStructure(projectDir: string) {
-	const structure = [
-		'project/src',
-		'project/src',
-		'project/scenes',
-		'project/assets',
-		'project/tests',
-		'project/addons',
-		'build',
-		'scripts',
-	];
-	for (const folder of structure) await fs.ensureDir(path.join(projectDir, folder));
+async function createFolderStructure(projectDir: string) {
+	const templateDir = path.join(CurrentDirectory, '..', 'templates');
+	const structure = JSON.parse(await fs.readFileSync(path.join(templateDir, 'web.template.json'), 'utf-8'));
+
+	for (const folder of structure) {
+		await fs.ensureDir(path.join(projectDir, folder));
+	}
 }
 
-async function HandleProjectOverwrite(projectDir: string, answers: Answers) {
+async function handleProjectOverwrite(projectDir: string, answers: Answers) {
 	if (fs.existsSync(projectDir)) {
-		const confirm = await inquirer.prompt([
-			{
-				type: 'confirm',
-				name: 'overwrite',
-				message: `Folder '${answers.name}' already exists. Overwrite?`,
-				default: false,
-			},
-		]);
-		if (!confirm.overwrite) {
-			console.log(chalk.red('❌ Project creation canceled.'));
+		if (!(await overwriteProject(answers))) {
+			console.log(chalk.red('Project creation canceled.'));
 			process.exit(2);
 		}
 		await fs.remove(projectDir);
 	}
 }
 
-async function CreateGodotProject(projectDir: string, answers: Answers) {
+async function createGodotProject(projectDir: string, answers: Answers) {
 	const appConfig = answers.renderingTemplate.config.application;
 
 	for (const key of Object.keys(appConfig)) {
@@ -137,30 +126,32 @@ async function CreateGodotProject(projectDir: string, answers: Answers) {
 async function createDefaultScene(projectPath: string, template: string) {
 	const sceneDir = path.join(projectPath, 'scenes');
 	const sceneFile = path.join(sceneDir, 'main.tscn');
+	const templateDir = path.join(CurrentDirectory, '..', 'templates');
+
 	await fs.ensureDir(sceneDir);
 
-	const sceneContent = `[gd_scene format=3]
-
-[node name="Main" type="Node${template}"]
-`;
+	const sceneContent = JSON.parse(
+		fs.readFileSync(path.join(templateDir, 'web.template.json'), 'utf-8').replace('{{template}}', template),
+	);
 
 	await fs.writeFile(sceneFile, sceneContent, 'utf8');
 
 	// Update project.godot to reference the main scene
 	const projectFile = path.join(projectPath, 'project.godot');
+
 	let projectData = await fs.readFile(projectFile, 'utf8');
 
 	if (!projectData.includes('run/main_scene')) {
-		projectData += `\n[application]\nrun/main_scene="res://scenes/main.tscn"\n`;
+		projectData += '\n[application]\nrun/main_scene="res://scenes/main.tscn"\n';
 		await fs.writeFile(projectFile, projectData, 'utf8');
 	}
 }
 
-async function InitGit(projectDir: string, answers: Answers) {
-	const templateDir = path.join(__dirname, '..', 'templates');
+async function initGit(projectDir: string, answers: Answers) {
+	const templateDir = path.join(CurrentDirectory, '..', 'templates');
 
-	const gitIgnore = JSON.parse(await fs.readFileSync(path.join(templateDir, 'gitIgnore.template.json'), 'utf-8'));
-	const gitAttr = JSON.parse(await fs.readFileSync(path.join(templateDir, 'gitAttributes.template.json'), 'utf-8'));
+	const gitIgnore = JSON.parse(fs.readFileSync(path.join(templateDir, 'gitIgnore.template.json'), 'utf-8'));
+	const gitAttr = JSON.parse(fs.readFileSync(path.join(templateDir, 'gitAttributes.template.json'), 'utf-8'));
 
 	try {
 		//write config files

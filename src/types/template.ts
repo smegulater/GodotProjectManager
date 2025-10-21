@@ -20,8 +20,8 @@ export interface TemplateFile extends TemplateJson {
 	fullPath: string;
 }
 
-export interface TemplateChoice{
-    name: string
-    short: string
-    value: TemplateFile
+export interface TemplateChoice {
+	name: string;
+	short: string;
+	value: TemplateFile;
 }

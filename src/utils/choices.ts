@@ -1,13 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import type { TemplateChoice, TemplateFile, TemplateJson } from "../types/template.js";
+import type { TemplateChoice, TemplateFile, TemplateJson } from '../types/template.js';
 
-
-export async function getTemplateChoices(templateDir:string): Promise<TemplateChoice[]>{
-// Get all files in the directory that match "template*.json"
-	const templateFiles = fs
-		.readdirSync(templateDir)
-		.filter((f) => f.includes('template') && f.endsWith('.json'));
+export async function getTemplateChoices(templateDir: string): Promise<TemplateChoice[]> {
+	// Get all files in the directory that match "template*.json"
+	const templateFiles = fs.readdirSync(templateDir).filter((f) => f.includes('template') && f.endsWith('.json'));
 
 	// Map over each file and load its JSON data
 	const templates = templateFiles.map((file): TemplateFile => {
@@ -20,12 +17,13 @@ export async function getTemplateChoices(templateDir:string): Promise<TemplateCh
 		};
 	});
 
-    const templateChoices = templates.map((t): TemplateChoice => ({
-		name: `${t.name}\n    ${t.description || 'No description'}`,
-		short: t.name,
-		value: t,
-	}));
+	const templateChoices = templates.map(
+		(t): TemplateChoice => ({
+			name: `${t.name}\n    ${t.description || 'No description'}`,
+			short: t.name,
+			value: t,
+		}),
+	);
 
-    return templateChoices;
+	return templateChoices;
 }
-
