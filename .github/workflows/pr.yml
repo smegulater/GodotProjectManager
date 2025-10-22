@@ -58,6 +58,7 @@ jobs:
           report-json: eslint-report.json
           only-pr-files: true
           fail-on-warning: false
+          check-name: ESLint Report Analysis Report
 
       - name: Summarize ESLint Results
         id: eslint_summary
