@@ -33,19 +33,8 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           report-json: eslint-report.json
-
-      - name: Fail if ESLint Errors Found
-        if: always()  # ✅ ensures we still check the report file
-        run: |
-          ERRORS=$(jq '. | map(select(.errorCount > 0)) | length' eslint-report.json)
-          WARNINGS=$(jq '. | map(select(.warningCount > 0)) | length' eslint-report.json)
-          echo "ESLint found $ERRORS error files and $WARNINGS warning files"
-
-          if [ "$ERRORS" -gt 0 ]; then
-            echo "❌ ESLint errors found. Failing job."
-            exit 1
-          fi
-
+          only-pr-files: true
+          fail-on-warning: true
 
   test:
     runs-on: ubuntu-latest
