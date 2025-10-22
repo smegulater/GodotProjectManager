@@ -1,13 +1,13 @@
 import fetch from 'node-fetch';
 
-export const godotReleaseType = {
+export const GodotReleaseType = {
 	Stable: 'stable',
 	PreRelease: 'pre-release',
 	Draft: 'draft',
 	All: 'all',
 } as const;
 
-export type GodotReleaseType = (typeof godotReleaseType)[keyof typeof godotReleaseType];
+export type GodotReleaseType = (typeof GodotReleaseType)[keyof typeof GodotReleaseType];
 
 const API_URL = 'https://api.github.com/repos/godotengine/godot/releases';
 
@@ -29,19 +29,19 @@ export async function getGodotVersions(type: GodotReleaseType): Promise<string[]
 	let filtered = data;
 
 	switch (type) {
-		case godotReleaseType.Stable:
+		case GodotReleaseType.Stable:
 			filtered = data.filter((r) => !r.prerelease && !r.draft);
 			break;
 
-		case godotReleaseType.PreRelease:
+		case GodotReleaseType.PreRelease:
 			filtered = data.filter((r) => r.prerelease && !r.draft);
 			break;
 
-		case godotReleaseType.Draft:
+		case GodotReleaseType.Draft:
 			filtered = data.filter((r) => r.draft);
 			break;
 
-		case godotReleaseType.All:
+		case GodotReleaseType.All:
 		default:
 			// no filtering
 			break;

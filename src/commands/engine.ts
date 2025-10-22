@@ -95,32 +95,25 @@ export async function installEngine({ mono, isNew, installVersion }: InstallEngi
 
 		spinner.succeed(chalk.green(`Godot ${version} ${flavor} installed successfully!`));
 		console.log(chalk.gray(`→ Installed at: ${extractDir}`));
-	} catch (err: any) {
-		spinner.fail(chalk.red(`Failed to install Godot ${version}: ${err.message}`));
-
-		// 🧹 Make sure spinner is stopped and process terminates
-		spinner.stop();
-		process.exitCode = 1; // mark command as failed
+	} catch (err: unknown) {
+		if (err instanceof Error) {
+			spinner.fail(chalk.red(`Failed to install Godot ${version}: ${err.message}`));
+			process.exitCode = 1; // mark command as failed
+		} else {
+			spinner.fail(chalk.red(`Failed to install Godot ${version}`));
+			process.exitCode = 1; // mark command as failed
+		}
 	} finally {
-		// 🧹 Ensure no spinners or downloaded files
-		spinner.stop();
-
+		const spinner = ora(`Cleaning up install files...`).start();
 		try {
-			const files = await fs.readdir(enginesPath);
-
-			const zipFiles = files.filter((file) => file.endsWith('.zip'));
-			if (zipFiles.length === 0) {
-				console.log('No .zip files found.');
-				return;
+			await deleteAllZipFilesInPath(enginesPath);
+			spinner.fail(chalk.red(`Cleaned installation files`));
+		} catch (err: unknown) {
+			if (err instanceof Error) {
+				spinner.fail(chalk.red(`Failed to clean installation files:\n ${err.message}`));
+			} else {
+				spinner.fail(chalk.red(`Failed to clean installation files`));
 			}
-
-			for (const file of zipFiles) {
-				const fullPath = path.join(enginesPath, file);
-				await fs.unlink(fullPath);
-				console.log(chalk.grey(`🗑️ Cleaned up install file: ${file}`));
-			}
-		} catch (err) {
-			console.error(chalk.red('Failed to clean up install files'), err);
 		}
 	}
 }
@@ -131,7 +124,7 @@ export async function uninstallEngine() {
 	let answers: Answers;
 	try {
 		answers = await selectGodotVersionFromInstalled();
-	} catch (err: any) {
+	} catch {
 		console.log('No Engines installed. Exiting.');
 		return;
 	}
@@ -186,5 +179,22 @@ async function getLocalConfigVersion(projectDir: string): Promise<{ version: str
 	} else if (fs.existsSync(gpmJsonPath)) {
 		const gpmConfig = await fs.readJson(gpmJsonPath);
 		return { version: gpmConfig.engine, mono: gpmConfig.language === 'mono' };
+	}
+	return undefined;
+}
+
+async function deleteAllZipFilesInPath(enginesPath: string) {
+	const files = await fs.readdir(enginesPath);
+
+	const zipFiles = files.filter((file) => file.endsWith('.zip'));
+
+	if (zipFiles.length === 0) {
+		console.log('No .zip files found.');
+		return;
+	}
+
+	for (const file of zipFiles) {
+		const fullPath = path.join(enginesPath, file);
+		await fs.unlink(fullPath);
 	}
 }
