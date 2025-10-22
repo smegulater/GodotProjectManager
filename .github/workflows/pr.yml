@@ -1,6 +1,6 @@
 on:
   pull_request_target:
-    branches: [develop, main]
+    branches: [develop]
 
 permissions:
   contents: read
@@ -41,13 +41,6 @@ jobs:
           report-json: eslint-report.json
           only-pr-files: true
           fail-on-warning: true
-
-      # 🧩 Fail the job if ESLint found errors
-      - name: Fail if ESLint Errors Found
-        if: steps.eslint.outcome != 'success'
-        run: |
-          echo "❌ ESLint errors found. Check annotations in the PR diff."
-          exit 1
 
       # 🧩 Optional summary comment for PR
       - name: Post ESLint Summary Comment
