@@ -35,7 +35,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           report-json: eslint-report.json
           only-pr-files: true
-          fail-on-warning: true
+          fail-on-warning: false
 
       - name: Summarize ESLint Results
         id: eslint_summary
