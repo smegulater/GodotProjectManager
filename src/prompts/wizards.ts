@@ -13,7 +13,7 @@ export async function serveNewWizard() {
 
 	// build inquirer choices
 	const templateDir: string = path.join(__dirname, '..', 'templates', 'projects');
-	const templateChoices = await getTemplateChoices(templateDir);
+	const templateChoices = getTemplateChoices(templateDir);
 
 	//get available versions
 	const godotVersions = await getGodotVersions(GodotReleaseType.Stable).catch((err) => {

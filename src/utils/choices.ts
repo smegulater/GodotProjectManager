@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { TemplateChoice, TemplateFile, TemplateJson } from '../types/template.js';
 
-export async function getTemplateChoices(templateDir: string): Promise<TemplateChoice[]> {
+export function getTemplateChoices(templateDir: string): TemplateChoice[] {
 	// Get all files in the directory that match "template*.json"
 	const templateFiles = fs.readdirSync(templateDir).filter((f) => f.includes('template') && f.endsWith('.json'));
 
