@@ -1,9 +1,8 @@
 name: PR Checks
 
-# 🧩 Use pull_request_target to allow annotations & comments on PRs from forks
 on:
-  pull_request_target:
-    branches: [develop, main]
+  pull_request:
+    branches: [ develop, main ]
 
 permissions:
   contents: read
@@ -15,11 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # ensures we have diff context for PR annotations
-
+      - uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -28,16 +23,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 🧩 Run ESLint, but continue on failure so annotations can still post
       - name: Run ESLint
-        id: eslint
-        continue-on-error: true
         run: |
-          npx eslint . -f json -o eslint-report.json --max-warnings=0 || echo "ESLint completed with errors"
-
-      # 🧩 Annotate ESLint Results on PR diff view
+          npx eslint . -f json -o eslint-report.json || echo "ESLint completed with errors"
+          
       - name: Annotate ESLint Results
-        if: always()
+        if: always()  # ✅ ensures this runs even if ESLint failed
         uses: ataylorme/eslint-annotate-action@v3
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,34 +36,13 @@ jobs:
           only-pr-files: true
           fail-on-warning: true
 
-      # 🧩 Fail the job if ESLint found errors
-      - name: Fail if ESLint Errors Found
-        if: steps.eslint.outcome != 'success'
-        run: |
-          echo "❌ ESLint errors found. Check annotations in the PR diff."
-          exit 1
-
-      # 🧩 Optional summary comment for PR
-      - name: Post ESLint Summary Comment
-        if: always()
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          recreate: true
-          message: |
-            ### 🧹 ESLint Report
-            - **Status:** ${{ steps.eslint.outcome }}
-            - **Errors/Warnings:** See inline annotations in PR diff.
-            - **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
   test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
