@@ -180,6 +180,7 @@ async function getLocalConfigVersion(projectDir: string): Promise<{ version: str
 		const gpmConfig = await fs.readJson(gpmJsonPath);
 		return { version: gpmConfig.engine, mono: gpmConfig.language === 'mono' };
 	}
+	return undefined;
 }
 
 async function deleteAllZipFilesInPath(enginesPath: string) {
