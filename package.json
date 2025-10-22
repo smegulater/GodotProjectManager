@@ -19,6 +19,7 @@
 		"dev": "ts-node src/index.ts",
 		"lint": "eslint . --ext .ts --max-warnings=0",
 		"lint:fix": "eslint . --ext .ts --fix",
+		"lint:report": "eslint . --ext .ts --output-file eslint_report.json --format json src",
 		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --ci",
 		"build": "tsc",
 		"postbuild": "copyfiles -u 1 src/templates/**/* dist/",
