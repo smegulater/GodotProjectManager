@@ -36,7 +36,6 @@ jobs:
           report-json: eslint-report.json
           only-pr-files: true
           fail-on-warning: true
-          check-name: lint
 
       - name: Summarize ESLint Results
         id: eslint_summary
@@ -51,7 +50,7 @@ jobs:
         if: always()
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          recreate: true
+          recreate: false
           message: |
             ### 🧹 ESLint Report
             **Status:** ${{ steps.eslint.conclusion == 'success' && '✅ Passed' || '❌ Failed' }}
