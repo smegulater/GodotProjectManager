@@ -2,8 +2,10 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { execa } from 'execa';
-import inquirer, { type Answers } from 'inquirer';
+import inquirer from 'inquirer';
 import { listEngines } from './engine.js';
+import type { Gpmrc } from '../types/gpmrc.js';
+import type { GpmConfig } from '../types/gpmConfig.js';
 /**
  * Runs the current Godot project using the selected engine.
  * Priority:
@@ -21,8 +23,8 @@ export async function runProject(mode: 'default' | 'test' = 'default') {
 	// Try to read local override first (.gpmrc)
 	if (fs.existsSync(rcPath)) {
 		try {
-			const rc = await fs.readJson(rcPath);
-			engineVersion = rc.engine;
+			const rc = (await fs.readJson(rcPath)) as Gpmrc;
+			engineVersion = rc.engineVersion;
 		} catch {
 			console.log(chalk.red('⚠️  Failed to read .gpmrc file.'));
 		}
@@ -31,16 +33,16 @@ export async function runProject(mode: 'default' | 'test' = 'default') {
 	// Fallback: gpm.json
 	if (!engineVersion && fs.existsSync(configPath)) {
 		try {
-			const config = await fs.readJson(configPath);
-			engineVersion = config.engine;
+			const config = (await fs.readJson(configPath)) as GpmConfig;
+			engineVersion = config.engineVersion;
 		} catch {
 			console.log(chalk.red('⚠️  Failed to read gpm.json file.'));
 		}
 	}
 
 	if (!engineVersion) {
-		console.log(chalk.red('❌ No engine version found (.gpmrc or gpm.json).'));
-		console.log(chalk.gray('Run `gpm use` or `gpm init` to configure a version.'));
+		console.log(chalk.red('No engine version found (.gpmrc or gpm.json).'));
+		console.log(chalk.gray('\tRun `gpm use` or `gpm init` to configure a version.'));
 		return;
 	}
 
@@ -48,8 +50,8 @@ export async function runProject(mode: 'default' | 'test' = 'default') {
 	const enginesRoot = path.join(home!, '.gpm', 'engines');
 
 	if (!fs.existsSync(enginesRoot)) {
-		console.log(chalk.red('❌ No engines installed yet.'));
-		console.log(chalk.gray('Use `gpm engine install <version>` to install one.'));
+		console.log(chalk.red('No engines installed yet.'));
+		console.log(chalk.gray('\nUse `gpm engine install <version>` to install one.'));
 		return;
 	}
 
@@ -99,8 +101,9 @@ export async function runProject(mode: 'default' | 'test' = 'default') {
 			subprocess.unref();
 			console.log(chalk.green('🚀 Godot editor launched!'));
 		}
-	} catch (err: any) {
-		console.log(chalk.red(`❌ Failed to run Godot: ${err.message}`));
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.log(chalk.red(`Failed to run Godot:\n\t${message}`));
 	}
 }
 
@@ -119,7 +122,7 @@ export async function runEditor() {
 	// Find engine folder matching version (supports mono suffix)
 	const installedEngines = await listEngines(true);
 
-	const answers: Answers = await inquirer.prompt([
+	const { version } = await inquirer.prompt<{ version: string }>([
 		{
 			type: 'list',
 			name: 'version',
@@ -128,12 +131,12 @@ export async function runEditor() {
 		},
 	]);
 
-	const enginePath = path.join(enginesRoot, answers.version);
+	const enginePath = path.join(enginesRoot, version);
 	const exePath = await findEngineExecutable(enginePath);
 
 	if (!exePath) {
-		console.log(chalk.red('❌ Could not find a valid Godot executable in this engine folder.'));
-		console.log(chalk.gray(`Checked: ${enginePath}`));
+		console.log(chalk.red('Could not find a valid Godot executable in this engine folder.'));
+		console.log(chalk.gray(`\tChecked: ${enginePath}`));
 		return;
 	}
 
@@ -147,8 +150,9 @@ export async function runEditor() {
 
 		subprocess.unref();
 		console.log(chalk.green('🚀 Godot editor launched!'));
-	} catch (err: any) {
-		console.log(chalk.red(`❌ Failed to run Godot: ${err.message}`));
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.log(chalk.red(`Failed to run Godot:\n\t${message}`));
 	}
 }
 /**
