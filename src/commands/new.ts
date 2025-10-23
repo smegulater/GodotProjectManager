@@ -7,7 +7,7 @@ import path from 'path';
 import { installEngine } from './engine.js';
 import { useEngine } from './use.js';
 import { jsonToConfig } from '../utils/jsonToConfig.js';
-import { serveNewWizard } from '../prompts/wizards.js';
+import serveNewWizard, { type NewWizardAnswers } from '../prompts/wizards/serveNewWizard.js';
 import type { GpmConfig } from '../types/gpmConfig.js';
 import { overwriteProject } from '../prompts/answers.js';
 import type { Answers } from 'inquirer';
@@ -48,13 +48,13 @@ export async function newProject() {
 	}
 
 	//Step 4: Auto-install engine
-	const mono = answers.renderingTemplate.mono;
-	await installEngine({ mono: mono, isNew: false, installVersion: answers.engine });
+	const mono = answers.renderingTemplate.value.mono;
+	await installEngine({ mono: mono, isNew: false, installVersion: answers.engineVersion });
 
 	try {
-		await useEngine(answers.renderingTemplate.mono ? `${answers.engine}-mono` : answers.engine);
+		await useEngine(mono ? `${answers.engineVersion}-mono` : answers.engineVersion);
 	} catch {
-		chalk.red("Failed to set the engine for new project. Run 'gpm use' to set one ");
+		console.log(chalk.red("Failed to set the engine for new project. Run 'gpm use' to set one "));
 	}
 
 	console.log(chalk.green(`\n🎉 Project '${answers.name}' created successfully!`));
@@ -66,16 +66,16 @@ export async function newProject() {
 	console.log('  gpm run test   (run test build)\n');
 }
 
-async function createGpmJson(projectDir: string, answers: Answers) {
+async function createGpmJson(projectDir: string, answers: NewWizardAnswers) {
 	const gpmConfig: GpmConfig = {
 		name: answers.name,
 		description: answers.description,
 		author: process.env.USER || process.env.USERNAME || 'Unknown',
 		version: answers.version,
-		engineVersion: answers.engine,
-		renderer: answers.renderingTemplate.renderer,
-		language: answers.renderingTemplate.mono ? 'mono' : 'gdscript',
-		template: answers.template.toLowerCase(),
+		engineVersion: answers.engineVersion,
+		renderer: answers.renderingTemplate.value.renderer,
+		language: answers.renderingTemplate.value.mono ? 'mono' : 'gdscript',
+		template: answers.template,
 		createdAt: new Date().toISOString(),
 		buildTemplate: answers.renderingTemplate.name,
 	};
@@ -86,14 +86,16 @@ async function createGpmJson(projectDir: string, answers: Answers) {
 
 async function createFolderStructure(projectDir: string) {
 	const templateDir = path.join(CurrentDirectory, '..', 'templates');
-	const structure = JSON.parse(await fs.readFileSync(path.join(templateDir, 'web.template.json'), 'utf-8'));
+	const structure = JSON.parse(
+		fs.readFileSync(path.join(templateDir, 'folderStructure.template.json'), 'utf-8'),
+	) as string[];
 
 	for (const folder of structure) {
 		await fs.ensureDir(path.join(projectDir, folder));
 	}
 }
 
-async function handleProjectOverwrite(projectDir: string, answers: Answers) {
+async function handleProjectOverwrite(projectDir: string, answers: NewWizardAnswers) {
 	if (fs.existsSync(projectDir)) {
 		if (!(await overwriteProject(answers))) {
 			console.log(chalk.red('Project creation canceled.'));
@@ -103,8 +105,8 @@ async function handleProjectOverwrite(projectDir: string, answers: Answers) {
 	}
 }
 
-async function createGodotProject(projectDir: string, answers: Answers) {
-	const appConfig = answers.renderingTemplate.config.application;
+async function createGodotProject(projectDir: string, answers: NewWizardAnswers) {
+	const appConfig = answers.renderingTemplate.value.config.application;
 
 	for (const key of Object.keys(appConfig)) {
 		const value = appConfig[key];
@@ -118,7 +120,7 @@ async function createGodotProject(projectDir: string, answers: Answers) {
 	}
 
 	// Generate config text
-	const output = jsonToConfig(answers.renderingTemplate.config);
+	const output = jsonToConfig(answers.renderingTemplate.value.config);
 
 	await fs.writeFile(path.join(projectDir, 'project', 'project.godot'), output);
 }
