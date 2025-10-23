@@ -1,15 +1,24 @@
+//TODO: placeholder - need to update for Init command
+
 import chalk from 'chalk';
+import inquirer from 'inquirer';
 import path from 'path';
-import inquirer, { type Answers } from 'inquirer';
+import { getTemplateChoices } from '../../utils/choices.js';
+import { getGodotVersions, GodotReleaseType } from '../../utils/godotVersions.js';
 
-import { getGodotVersions, GodotReleaseType } from '../utils/godotVersions.js';
-import { getTemplateChoices } from '../utils/choices.js';
-
-export async function serveInitWizard() {}
-
-export async function serveNewWizard() {
+export interface InitWizardAnswers {
+	name: string;
+	description: string;
+	version: string;
+	template: '2D' | '3D';
+	renderingTemplate: string;
+	engineVersion: string;
+	gitInit: boolean;
+	gitInitLfs: boolean;
+}
+export default async function serveInitWizard(): Promise<InitWizardAnswers> {
 	console.log(chalk.cyan('\n✨ Welcome to the Godot Project Manager Wizard! ✨'));
-	console.log(chalk.gray('\tLet’s create a new project step-by-step.\n'));
+	console.log(chalk.gray('\tLet’s setup GPM on an existing project step-by-step.\n'));
 
 	// build inquirer choices
 	const templateDir: string = path.join(__dirname, '..', 'templates', 'projects');
@@ -17,11 +26,11 @@ export async function serveNewWizard() {
 
 	//get available versions
 	const godotVersions = await getGodotVersions(GodotReleaseType.Stable).catch((err) => {
-		console.error('❌ Failed to fetch versions:', err);
+		console.error('Failed to fetch versions:', err);
 		process.exit(1);
 	});
 
-	const answers: Answers = await inquirer.prompt([
+	const answers = await inquirer.prompt<InitWizardAnswers>([
 		{
 			type: 'input',
 			name: 'name',
@@ -56,7 +65,7 @@ export async function serveNewWizard() {
 		},
 		{
 			type: 'list',
-			name: 'engine',
+			name: 'engineVersion',
 			message: 'Godot version:',
 			choices: godotVersions,
 		},
