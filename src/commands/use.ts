@@ -23,7 +23,7 @@ export async function useEngine(versionArg?: string) {
 	let chosenVersion = versionArg;
 
 	if (!chosenVersion) {
-		const answer = await inquirer.prompt([
+		const { engine } = await inquirer.prompt<{ engine: string }>([
 			{
 				type: 'list',
 				name: 'engine',
@@ -31,7 +31,7 @@ export async function useEngine(versionArg?: string) {
 				choices: installedEngines,
 			},
 		]);
-		chosenVersion = answer.engine;
+		chosenVersion = engine;
 	} else if (!installedEngines.includes(chosenVersion)) {
 		console.log(chalk.red(`Engine ${chosenVersion} not found in ~/.gpm/engines`));
 		return;
