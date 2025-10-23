@@ -132,7 +132,7 @@ async function createDefaultScene(projectPath: string, template: string) {
 
 	const sceneContent = JSON.parse(
 		fs.readFileSync(path.join(templateDir, 'web.template.json'), 'utf-8').replace('{{template}}', template),
-	);
+	) as string;
 
 	await fs.writeFile(sceneFile, sceneContent, 'utf8');
 
@@ -150,8 +150,10 @@ async function createDefaultScene(projectPath: string, template: string) {
 async function initGit(projectDir: string, answers: Answers) {
 	const templateDir = path.join(CurrentDirectory, '..', 'templates');
 
-	const gitIgnore = JSON.parse(fs.readFileSync(path.join(templateDir, 'gitIgnore.template.json'), 'utf-8'));
-	const gitAttr = JSON.parse(fs.readFileSync(path.join(templateDir, 'gitAttributes.template.json'), 'utf-8'));
+	const gitIgnore = JSON.parse(fs.readFileSync(path.join(templateDir, 'gitIgnore.template.json'), 'utf-8')) as string[];
+	const gitAttr = JSON.parse(
+		fs.readFileSync(path.join(templateDir, 'gitAttributes.template.json'), 'utf-8'),
+	) as string[];
 
 	try {
 		//write config files
@@ -171,7 +173,8 @@ async function initGit(projectDir: string, answers: Answers) {
 			cwd: projectDir,
 		});
 		console.log(chalk.green('Initialized Git repository'));
-	} catch (err: any) {
-		console.log(chalk.yellow(`⚠️  Failed to init git -\n${err.message}`));
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.log(chalk.yellow(`Failed to init git:\n\t${message}`));
 	}
 }
