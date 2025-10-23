@@ -1,7 +1,8 @@
-import inquirer, { type Answers } from 'inquirer';
+import inquirer from 'inquirer';
 import { getGodotVersions, GodotReleaseType } from '../utils/godotVersions.js';
 import { listEngines } from '../commands/engine.js';
 import chalk from 'chalk';
+import type { NewWizardAnswers } from './wizards/serveNewWizard.js';
 
 export class FetchGodotVersionException extends Error {
 	constructor(message: string) {
@@ -21,12 +22,13 @@ export async function selectGodotVersionFromGodot(): Promise<string> {
 
 	try {
 		godotVersions = await getGodotVersions(GodotReleaseType.Stable);
-	} catch (err: any) {
-		console.error('Failed to fetch versions', err.message);
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error('Failed to fetch versions', message);
 		throw new FetchGodotVersionException('Failed to fetch versions from web');
 	}
 
-	const { engineValue } = await inquirer.prompt([
+	const { engineValue } = await inquirer.prompt<{ engineValue: string }>([
 		{
 			type: 'list',
 			name: 'engineValue',
@@ -38,14 +40,14 @@ export async function selectGodotVersionFromGodot(): Promise<string> {
 	return engineValue;
 }
 
-export async function selectGodotVersionFromInstalled(): Promise<Answers> {
+export async function selectGodotVersionFromInstalled(): Promise<string[]> {
 	const installedEngines = await listEngines(true);
 
 	if (installedEngines.length === 0) {
 		throw new NoInstalledEnginesException('Could not detect any installed versions');
 	}
 
-	const answers: Answers = await inquirer.prompt([
+	const { versions } = await inquirer.prompt<{ versions: string[] }>([
 		{
 			type: 'checkbox',
 			name: 'versions',
@@ -54,16 +56,16 @@ export async function selectGodotVersionFromInstalled(): Promise<Answers> {
 		},
 	]);
 
-	return answers;
+	return versions;
 }
 
-export async function initReqMet() {
-	console.log(chalk.yellow.bold('\n⚠️  WARNING:'));
+export async function initReqMet(): Promise<boolean> {
+	console.log(chalk.yellow.bold('\n⚠️  WARNING  ⚠️'));
 	console.log(chalk.yellow('Before continuing, please make sure you:'));
 	console.log(chalk.yellow(' - Have created a backup of your project.'));
 	console.log(chalk.yellow(' - Have closed Godot completely.\n'));
 
-	const { confirmContinue } = await inquirer.prompt([
+	const { confirmContinue } = await inquirer.prompt<{ confirmContinue: boolean }>([
 		{
 			type: 'confirm',
 			name: 'confirmContinue',
@@ -75,8 +77,8 @@ export async function initReqMet() {
 	return confirmContinue;
 }
 
-export async function overwriteProject(answers: Answers): Promise<boolean> {
-	const { overwrite } = await inquirer.prompt([
+export async function overwriteProject(answers: NewWizardAnswers): Promise<boolean> {
+	const { overwrite } = await inquirer.prompt<{ overwrite: boolean }>([
 		{
 			type: 'confirm',
 			name: 'overwrite',

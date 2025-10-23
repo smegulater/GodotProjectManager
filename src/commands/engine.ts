@@ -3,11 +3,12 @@ import path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
 import AdmZip from 'adm-zip';
-import type { Answers } from 'inquirer';
 
 import { downloadFile } from '../utils/download.js';
 
 import { selectGodotVersionFromGodot, selectGodotVersionFromInstalled } from '../prompts/answers.js';
+import type { GpmConfig } from '../types/gpmConfig.js';
+import type { Gpmrc } from '../types/gpmrc.js';
 
 type InstallEngineOptions = {
 	mono: boolean;
@@ -109,11 +110,8 @@ export async function installEngine({ mono, isNew, installVersion }: InstallEngi
 			await deleteAllZipFilesInPath(enginesPath);
 			spinner.fail(chalk.red(`Cleaned installation files`));
 		} catch (err: unknown) {
-			if (err instanceof Error) {
-				spinner.fail(chalk.red(`Failed to clean installation files:\n ${err.message}`));
-			} else {
-				spinner.fail(chalk.red(`Failed to clean installation files`));
-			}
+			const message = err instanceof Error ? err.message : String(err);
+			spinner.fail(chalk.red(`Failed to clean installation files:\n\t${message}`));
 		}
 	}
 }
@@ -121,26 +119,27 @@ export async function installEngine({ mono, isNew, installVersion }: InstallEngi
 export async function uninstallEngine() {
 	const enginesPath = getEngineDir();
 
-	let answers: Answers;
+	let versions: string[];
 	try {
-		answers = await selectGodotVersionFromInstalled();
+		versions = await selectGodotVersionFromInstalled();
 	} catch {
 		console.log('No Engines installed. Exiting.');
 		return;
 	}
 
-	if (answers.versions.length === 0) {
+	if (versions.length === 0) {
 		console.log(chalk.yellow('No options selected. Exiting.'));
 		return;
 	}
 
-	for (const version of answers.versions) {
+	for (const version of versions) {
 		const spinner = ora(`Uninstalling Godot ${version} ...`).start();
 		try {
 			await fs.remove(path.join(enginesPath, version));
 			spinner.succeed(`Uninstalled ${version} successfully`);
-		} catch (error: any) {
-			spinner.fail(`Failed to uninstall ${version} due to: ${error}`);
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			spinner.fail(`Failed to uninstall ${version}\n\t${message}`);
 		}
 	}
 }
@@ -173,12 +172,12 @@ async function getLocalConfigVersion(projectDir: string): Promise<{ version: str
 	const gpmrcPath = path.join(projectDir, '.gpmrc');
 	const gpmJsonPath = path.join(projectDir, 'gpm.json');
 
-	if (await fs.existsSync(gpmrcPath)) {
-		const gpmrc = await fs.readJson(gpmrcPath);
+	if (fs.existsSync(gpmrcPath)) {
+		const gpmrc = (await fs.readJson(gpmrcPath)) as Gpmrc;
 		return { version: gpmrc.engineVersion, mono: gpmrc.mono };
 	} else if (fs.existsSync(gpmJsonPath)) {
-		const gpmConfig = await fs.readJson(gpmJsonPath);
-		return { version: gpmConfig.engine, mono: gpmConfig.language === 'mono' };
+		const gpmConfig = (await fs.readJson(gpmJsonPath)) as GpmConfig;
+		return { version: gpmConfig.engineVersion, mono: gpmConfig.language === 'mono' };
 	}
 	return undefined;
 }

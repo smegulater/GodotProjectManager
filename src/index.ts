@@ -13,7 +13,7 @@ program.command('new').description('Create a new Godot project using the setup w
 
 program
 	.command('run [mode]')
-	.description('Run the Godot project, Godot enditor or tests')
+	.description('Run the Godot project, Godot editor or tests')
 	.action(async (mode: string | undefined) => {
 		const selectedMode = mode?.toLowerCase() ?? 'run';
 
@@ -40,13 +40,17 @@ program
 
 const engine = program.command('engine').description('Manage Godot engine versions');
 
+interface InstallOptions {
+	new?: boolean;
+	mono?: boolean;
+}
 engine
 	.command('install')
 	.description('Install a specific or project-defined Godot engine')
-	.option('--n|--new', '--new', false)
-	.option('-m|--mono', '--mono', false)
-	.action(async (options) => {
-		// Commander gives you options as an instance of CommandOptions, so extract flags
+	.option('-n, --new', 'Install a new engine', false)
+	.option('-m, --mono', 'Use Mono build', false)
+	.action(async (options: InstallOptions) => {
+		// Extract flags safely
 		const isNew = !!options.new;
 		const mono = !!options.mono;
 

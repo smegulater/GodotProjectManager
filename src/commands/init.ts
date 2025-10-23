@@ -1,3 +1,5 @@
+// TODO: create file
+/*
 import inquirer from 'inquirer';
 import fs from 'fs-extra';
 import path from 'path';
@@ -22,7 +24,7 @@ export async function initProject() {
 	// Step 1: detect Godot project
 	if (!(await fs.pathExists(godotFilePath))) {
 		console.log(chalk.red("No 'project.godot' found in this directory."));
-		console.log(chalk.gray('Please run this inside an existing Godot project.'));
+		console.log(chalk.gray('\tPlease run this inside an existing Godot project.'));
 		return;
 	}
 
@@ -128,3 +130,4 @@ export async function initProject() {
 	console.log('  gpm run');
 	console.log('  gpm run test\n');
 }
+*/
