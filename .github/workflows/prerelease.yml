@@ -42,10 +42,12 @@ jobs:
           set -e
           echo "Detecting change type..."
 
-          PR_NUMBER=$(gh pr list --base develop --state merged --json number,mergeCommitSha | jq -r ".[] | select(.mergeCommitSha==\"${GITHUB_SHA}\") | .number")
+          # Find merged PR that produced this commit on develop
+          PR_NUMBER=$(gh pr list --base develop --state merged --json number,mergeCommit | jq -r ".[] | select(.mergeCommit.oid==\"${GITHUB_SHA}\") | .number")
           CHANGE="patch"  # Default
 
           if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR #$PR_NUMBER for commit $GITHUB_SHA"
             LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name')
             echo "Labels: $LABELS"
             if echo "$LABELS" | grep -iq "enhancement"; then
@@ -55,6 +57,8 @@ jobs:
             elif echo "$LABELS" | grep -iq "documentation"; then
               CHANGE="patch"
             fi
+          else
+            echo "No PR found for this commit. Defaulting to patch."
           fi
 
           echo "change=$CHANGE" >> $GITHUB_OUTPUT
@@ -62,6 +66,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       # ----------------------------------------------------------
       # Determine next prerelease version
