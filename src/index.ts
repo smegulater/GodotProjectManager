@@ -4,6 +4,7 @@ import { installEngine, listEngines, uninstallEngine } from './commands/engine.j
 import { runProject, runEditor } from './commands/run.js';
 import { useEngine } from './commands/use.js';
 import { newProject } from './commands/new.js';
+import { initProject } from './commands/init.js';
 
 const program = new Command();
 
@@ -37,6 +38,8 @@ program
 	.command('use [version]')
 	.description('Select or set the Godot engine version for this project')
 	.action(useEngine);
+
+program.command('init').description('Initialise GPM for an existing Godot project').action(initProject);
 
 const engine = program.command('engine').description('Manage Godot engine versions');
 
