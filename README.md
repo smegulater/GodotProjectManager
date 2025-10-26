@@ -1,6 +1,6 @@
 # 🎮 Godot Project Manager (GPM)
 
-**GPM** is an opinionated, cross-platform command-line tool for managing **Godot Engine** projects.  
+**GPM** is a cross-platform command-line tool for managing **Godot Engine** projects.  
 It automates tedious setup steps like engine installation, project scaffolding, and build management —  
 similar in spirit to `npm` or `npx`, but for Godot developers.
 
@@ -15,12 +15,11 @@ similar in spirit to `npm` or `npx`, but for Godot developers.
   - Generates a ready-to-run `project.godot`
 
 - ⚙️ **Automatic Godot engine management**
-  - Installs Godot engines per version and flavor (stable, rc, beta)
+  - Installs Godot engines per version
   - Supports GDScript and Mono (C#)
   - Engines are cached in the following locations:
     - Unix: `~/.gpm/engines`
     - Windows: `%USERPROFILE%/.gpm/engines`
-
 
 - 🧠 **Project environment handling**
   - Tracks active Godot engine via `.gpmrc`
@@ -51,14 +50,18 @@ npx gpm new
 ```
 
 ## 🧭 Commands Overview
-| Command                        | Description                                         |
-| ------------------------------ | --------------------------------------------------- |
-| `gpm new`                      | Start the interactive project creation wizard       |
-| `gpm use <version>`            | Set or switch to a specific Godot engine version    |
-| `gpm run`                      | Launch the current project in the configured engine |
-| `gpm run test`                 | Build and run your project in test/debug mode       |
-| `gpm engine:install <version>` | Manually install a specific Godot engine            |
-| `gpm engine:list`              | Show all locally installed engine versions          |
+| Command                        | Description                                         | Documentation |
+| ------------------------------ | --------------------------------------------------- | ------------- |
+| `gpm new`                      | Start the interactive project creation wizard       |               |
+| `gpm init`                     | Intialise GPm in an existing godot project          |               |
+| `gpm use <version>`            | Set project to a specific Godot engine version      |               |
+| `gpm run`                      | Launch the current project in the configured engine |               |
+| `gpm run editor`               | Launches the configured editor but not the project  |               |
+| `gpm engine install `          | Install Godot engine for peoject                    |               |
+| `gpm engine install --new`     | Manually install a specific Godot engine using a wizard to select which version |               |
+| `gpm engine install --mono` | Manually install a specific Godot mono engine using a wizard to select which version |               |
+| `gpm engine list`              | Show all locally installed engine versions          |               |
+| `gpm engine uninstall `        | Run a wizard to uninstall one or more installed editors |               |
 
 
 ## 🏗️ Project Structure
@@ -85,33 +88,10 @@ my-godot-project/
 
 ## 🧰 Engine Management
 GPM installs and caches Godot engines under:
+- Unix: `~/.gpm/engines`
+- Windows: `%USERPROFILE%/.gpm/engines`
 
-``` bash
-~/.gpm/engines/
-```
-
-``` pgsql
-~/.gpm/engines/
-  ├── 4.5.1-stable/
-  ├── 4.5.1-stable-mono/
-  └── 4.4.3-stable/
-```
-If the requested engine already exists, GPM will reuse it automatically.
-
-##🧪 Example Workflow
-``` bash
-# Create a new project
-gpm new
-
-# Navigate into your new project
-cd my-game
-
-# Launch Godot editor
-gpm run
-
-# Run tests or build
-gpm run test
-```
+If the requested engine already exists locally, GPM will reuse it automatically.
 
 ## 🧠 Notes
 GPM uses the official Godot download API and mirrors from GitHub releases.
