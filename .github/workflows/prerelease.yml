@@ -88,7 +88,7 @@ jobs:
           echo "Current stable: $CURRENT_STABLE"
 
           # Get latest prerelease for that stable version
-          CURRENT_PRERELEASE=$(git tag --sort=-v:refname | grep -E "^${CURRENT_STABLE}-prerelease" | head -n 1 || true)
+          CURRENT_PRERELEASE=$(git tag --sort=-v:refname | grep -E "^${CURRENT_STABLE}-pre-release" | head -n 1 || true)
           echo "Current prerelease: ${CURRENT_PRERELEASE:-none}"
 
           if [ -z "${CURRENT_PRERELEASE:-}" ]; then
@@ -96,7 +96,7 @@ jobs:
             NEW_TAG="${CURRENT_STABLE}-prerelease.0.0.1"
           else
             # Extract numeric suffix after "prerelease."
-            SUFFIX=$(echo "$CURRENT_PRERELEASE" | sed -E "s/^${CURRENT_STABLE}-prerelease\.?//")
+            SUFFIX=$(echo "$CURRENT_PRERELEASE" | sed -E "s/^${CURRENT_STABLE}-pre-release\.?//")
 
             if [ -z "$SUFFIX" ]; then
               a=0; b=0; c=1
