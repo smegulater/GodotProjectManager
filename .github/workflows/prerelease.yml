@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://registry.npmjs.org/'
+          registry-url: "https://registry.npmjs.org/"
 
       - name: Install dependencies
         run: npm ci
@@ -68,7 +68,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------------------------------------
-      # Determine next prerelease version (safe version)
+      # Determine next prerelease version (safe, auto-incrementing)
       # ----------------------------------------------------------
       - name: Determine next prerelease version
         id: version
@@ -78,38 +78,40 @@ jobs:
 
           CHANGE_TYPE=${{ steps.changetype.outputs.change || 'patch' }}
 
-          echo "Detecting next prerelease version (change type: $CHANGE_TYPE)"
+          echo "Determining next prerelease version (change type: $CHANGE_TYPE)"
 
           # Get latest stable tag (may be empty)
-          CURRENT_STABLE=$(git tag --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true | head -n 1)
+          CURRENT_STABLE=$(git tag --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
           if [ -z "${CURRENT_STABLE:-}" ]; then
             CURRENT_STABLE="1.0.0"
           fi
           echo "Current stable: $CURRENT_STABLE"
 
           # Get latest prerelease for that stable version
-          CURRENT_PRERELEASE=$(git tag --sort=-v:refname | grep -E "^${CURRENT_STABLE}-prerelease" || true | head -n 1)
+          CURRENT_PRERELEASE=$(git tag --sort=-v:refname | grep -E "^${CURRENT_STABLE}-prerelease" | head -n 1 || true)
           echo "Current prerelease: ${CURRENT_PRERELEASE:-none}"
 
           if [ -z "${CURRENT_PRERELEASE:-}" ]; then
-            NEW_TAG="${CURRENT_STABLE}-prerelease"
+            # no prerelease yet — start at .0.0.1
+            NEW_TAG="${CURRENT_STABLE}-prerelease.0.0.1"
           else
+            # Extract numeric suffix after "prerelease."
             SUFFIX=$(echo "$CURRENT_PRERELEASE" | sed -E "s/^${CURRENT_STABLE}-prerelease\.?//")
 
             if [ -z "$SUFFIX" ]; then
-              NEW_TAG="${CURRENT_STABLE}-prerelease.0.0.1"
+              a=0; b=0; c=1
             else
               IFS='.' read -r a b c <<< "$SUFFIX"
               a=${a:-0}; b=${b:-0}; c=${c:-0}
-
-              case "$CHANGE_TYPE" in
-                major) a=$((a+1)); b=0; c=0 ;;
-                minor) b=$((b+1)); c=0 ;;
-                patch|*) c=$((c+1)) ;;
-              esac
-
-              NEW_TAG="${CURRENT_STABLE}-prerelease.${a}.${b}.${c}"
             fi
+
+            case "$CHANGE_TYPE" in
+              major) a=$((a+1)); b=0; c=0 ;;
+              minor) b=$((b+1)); c=0 ;;
+              patch|*) c=$((c+1)) ;;
+            esac
+
+            NEW_TAG="${CURRENT_STABLE}-prerelease.${a}.${b}.${c}"
           fi
 
           echo "current_stable=$CURRENT_STABLE" >> "$GITHUB_OUTPUT"
