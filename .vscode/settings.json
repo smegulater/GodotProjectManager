@@ -3,5 +3,6 @@
 		"source.fixAll": "explicit"
 	},
 	"eslint.validate": ["typescript"],
-	"editor.defaultFormatter": "esbenp.prettier-vscode"
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"godotTools.editorPath.godot3": "${env:USERPROFILE}\\.gpm\\engines\\4.5.1\\Godot_v4.5.1-stable_win64.exe"
 }
