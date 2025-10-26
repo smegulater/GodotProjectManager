@@ -2,7 +2,6 @@ import inquirer from 'inquirer';
 import { getGodotVersions, GodotReleaseType } from '../utils/godotVersions.js';
 import { listEngines } from '../commands/engine.js';
 import chalk from 'chalk';
-import type { NewWizardAnswers } from './wizards/serveNewWizard.js';
 
 export class FetchGodotVersionException extends Error {
 	constructor(message: string) {
@@ -77,12 +76,12 @@ export async function initReqMet(): Promise<boolean> {
 	return confirmContinue;
 }
 
-export async function overwriteProject(answers: NewWizardAnswers): Promise<boolean> {
+export async function overwriteProject(): Promise<boolean> {
 	const { overwrite } = await inquirer.prompt<{ overwrite: boolean }>([
 		{
 			type: 'confirm',
 			name: 'overwrite',
-			message: `Folder '${answers.name}' already exists. Overwrite?`,
+			message: `Overwrite?`,
 			default: false,
 		},
 	]);

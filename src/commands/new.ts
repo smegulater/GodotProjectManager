@@ -1,28 +1,25 @@
-import { fileURLToPath } from 'url';
 import { execa } from 'execa';
 import chalk from 'chalk';
-import fs from 'fs-extra';
 import path from 'path';
+import fs from 'fs-extra';
 
-import { installEngine } from './engine.js';
-import { useEngine } from './use.js';
-import { jsonToConfig } from '../utils/jsonToConfig.js';
 import serveNewWizard, { type NewWizardAnswers } from '../prompts/wizards/serveNewWizard.js';
-import type { GpmConfig } from '../types/gpmConfig.js';
 import { overwriteProject } from '../prompts/answers.js';
+import { installPath, runPath } from '../utils/paths.js';
+import { jsonToConfig } from '../utils/jsonToConfig.js';
+import type { GpmConfig } from '../types/gpmConfig.js';
+import { installEngine } from './engine.js';
 import type { Answers } from 'inquirer';
-
-const currentFileName = fileURLToPath(import.meta.url);
-const CurrentDirectory = path.dirname(currentFileName);
+import { useEngine } from './use.js';
 
 export async function newProject() {
 	// Step 1: run wizard to get required data
 	const answers = await serveNewWizard();
 
-	const projectDir = path.resolve(process.cwd(), answers.name);
+	const projectDir = path.join(runPath, answers.name);
 
 	// Step 2: Handle overwrite
-	await handleProjectOverwrite(projectDir, answers);
+	await handleProjectOverwrite(projectDir);
 
 	//Step 3: Build project
 	console.log('\n');
@@ -39,6 +36,7 @@ export async function newProject() {
 
 	await createDefaultScene(path.join(projectDir, 'project'), answers.template);
 	console.log(chalk.green('Default scene: scenes/main.tscn created'));
+
 	//Step 5: Set .gpmrc
 	process.chdir(projectDir);
 
@@ -48,7 +46,7 @@ export async function newProject() {
 	}
 
 	//Step 4: Auto-install engine
-	const mono = answers.renderingTemplate.value.mono;
+	const mono = answers.renderingTemplate.mono;
 	await installEngine({ mono: mono, isNew: false, installVersion: answers.engineVersion });
 
 	try {
@@ -73,8 +71,8 @@ async function createGpmJson(projectDir: string, answers: NewWizardAnswers) {
 		author: process.env.USER || process.env.USERNAME || 'Unknown',
 		version: answers.version,
 		engineVersion: answers.engineVersion,
-		renderer: answers.renderingTemplate.value.renderer,
-		language: answers.renderingTemplate.value.mono ? 'mono' : 'gdscript',
+		renderer: answers.renderingTemplate.renderer,
+		language: answers.renderingTemplate.mono ? 'mono' : 'gdscript',
 		template: answers.template,
 		createdAt: new Date().toISOString(),
 		buildTemplate: answers.renderingTemplate.name,
@@ -85,7 +83,7 @@ async function createGpmJson(projectDir: string, answers: NewWizardAnswers) {
 }
 
 async function createFolderStructure(projectDir: string) {
-	const templateDir = path.join(CurrentDirectory, '..', 'templates');
+	const templateDir = path.join(installPath, 'templates');
 	const structure = JSON.parse(
 		fs.readFileSync(path.join(templateDir, 'folderStructure.template.json'), 'utf-8'),
 	) as string[];
@@ -95,18 +93,22 @@ async function createFolderStructure(projectDir: string) {
 	}
 }
 
-async function handleProjectOverwrite(projectDir: string, answers: NewWizardAnswers) {
+async function handleProjectOverwrite(projectDir: string) {
 	if (fs.existsSync(projectDir)) {
-		if (!(await overwriteProject(answers))) {
+		console.log(chalk.yellow(`The following folder already exists: ${projectDir}`));
+		console.log(chalk.red(`\tOverwriting will delete all contents`));
+
+		if (!(await overwriteProject())) {
 			console.log(chalk.red('Project creation canceled.'));
 			process.exit(2);
 		}
+
 		await fs.remove(projectDir);
 	}
 }
 
 async function createGodotProject(projectDir: string, answers: NewWizardAnswers) {
-	const appConfig = answers.renderingTemplate.value.config.application;
+	const appConfig = answers.renderingTemplate.config.application;
 
 	for (const key of Object.keys(appConfig)) {
 		const value = appConfig[key];
@@ -120,7 +122,7 @@ async function createGodotProject(projectDir: string, answers: NewWizardAnswers)
 	}
 
 	// Generate config text
-	const output = jsonToConfig(answers.renderingTemplate.value.config);
+	const output = jsonToConfig(answers.renderingTemplate.config);
 
 	await fs.writeFile(path.join(projectDir, 'project', 'project.godot'), output);
 }
@@ -128,15 +130,15 @@ async function createGodotProject(projectDir: string, answers: NewWizardAnswers)
 async function createDefaultScene(projectPath: string, template: string) {
 	const sceneDir = path.join(projectPath, 'scenes');
 	const sceneFile = path.join(sceneDir, 'main.tscn');
-	const templateDir = path.join(CurrentDirectory, '..', 'templates');
+	const templateDir = path.join(installPath, 'templates');
 
 	await fs.ensureDir(sceneDir);
 
 	const sceneContent = JSON.parse(
-		fs.readFileSync(path.join(templateDir, 'web.template.json'), 'utf-8').replace('{{template}}', template),
-	) as string;
+		fs.readFileSync(path.join(templateDir, 'mainScene.template.json'), 'utf-8').replace('{{template}}', template),
+	) as string[];
 
-	await fs.writeFile(sceneFile, sceneContent, 'utf8');
+	await fs.writeFile(sceneFile, sceneContent.join('\n'), 'utf8');
 
 	// Update project.godot to reference the main scene
 	const projectFile = path.join(projectPath, 'project.godot');
@@ -150,7 +152,7 @@ async function createDefaultScene(projectPath: string, template: string) {
 }
 
 async function initGit(projectDir: string, answers: Answers) {
-	const templateDir = path.join(CurrentDirectory, '..', 'templates');
+	const templateDir = path.join(installPath, 'templates');
 
 	const gitIgnore = JSON.parse(fs.readFileSync(path.join(templateDir, 'gitIgnore.template.json'), 'utf-8')) as string[];
 	const gitAttr = JSON.parse(

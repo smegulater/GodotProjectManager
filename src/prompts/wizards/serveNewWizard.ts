@@ -1,16 +1,20 @@
-import chalk from 'chalk';
 import inquirer from 'inquirer';
+import chalk from 'chalk';
+
 import path from 'path';
-import { getTemplateChoices } from '../../utils/choices.js';
+import process from 'process';
+
 import { getGodotVersions, GodotReleaseType } from '../../utils/godotVersions.js';
-import type { TemplateChoice } from '../../types/template.js';
+import type { TemplateFile } from '../../types/template.js';
+import { getTemplateChoices } from '../../utils/choices.js';
+import { installPath } from '../../utils/paths.js';
 
 export interface NewWizardAnswers {
 	name: string;
 	description: string;
 	version: string;
 	template: '2d' | '3d';
-	renderingTemplate: TemplateChoice;
+	renderingTemplate: TemplateFile;
 	engineVersion: string;
 	gitInit: boolean;
 	gitInitLfs: boolean;
@@ -20,7 +24,7 @@ export default async function serveNewWizard(): Promise<NewWizardAnswers> {
 	console.log(chalk.gray('\tLet’s create a new project step-by-step.\n'));
 
 	// build inquirer choices
-	const templateDir: string = path.join(__dirname, '..', 'templates', 'projects');
+	const templateDir: string = path.join(installPath, 'templates', 'projects');
 	const templateChoices = getTemplateChoices(templateDir);
 
 	//get available versions

@@ -1,27 +1,29 @@
-//TODO: placeholder - need to update for Init command
-
-import chalk from 'chalk';
 import inquirer from 'inquirer';
+import chalk from 'chalk';
 import path from 'path';
-import { getTemplateChoices } from '../../utils/choices.js';
+
 import { getGodotVersions, GodotReleaseType } from '../../utils/godotVersions.js';
+import type ProjectGodotIni from '../../types/ProjectGodotIni.js';
+import type { TemplateFile } from '../../types/template.js';
+import { getTemplateChoices } from '../../utils/choices.js';
+import { installPath } from '../../utils/paths.js';
 
 export interface InitWizardAnswers {
 	name: string;
 	description: string;
 	version: string;
-	template: '2D' | '3D';
-	renderingTemplate: string;
+	template: '2d' | '3d';
+	renderingTemplate: TemplateFile;
 	engineVersion: string;
 	gitInit: boolean;
 	gitInitLfs: boolean;
 }
-export default async function serveInitWizard(): Promise<InitWizardAnswers> {
+export default async function serveInitWizard(defaults: ProjectGodotIni): Promise<InitWizardAnswers> {
 	console.log(chalk.cyan('\n✨ Welcome to the Godot Project Manager Wizard! ✨'));
 	console.log(chalk.gray('\tLet’s setup GPM on an existing project step-by-step.\n'));
 
 	// build inquirer choices
-	const templateDir: string = path.join(__dirname, '..', 'templates', 'projects');
+	const templateDir: string = path.join(installPath, 'templates', 'projects');
 	const templateChoices = getTemplateChoices(templateDir);
 
 	//get available versions
@@ -35,27 +37,26 @@ export default async function serveInitWizard(): Promise<InitWizardAnswers> {
 			type: 'input',
 			name: 'name',
 			message: 'Project name:',
-			default: 'my-godot-project',
+			default: defaults?.application?.['config/name'] ?? 'my-godot-project',
 			validate: (input: string) => !!input.trim() || 'Project name cannot be empty.',
 		},
 		{
 			type: 'input',
 			name: 'description',
 			message: 'Description:',
-			default: 'A new Godot project generated with GPM',
+			default: defaults?.application?.['config/description'] ?? 'A new Godot project generated with GPM',
 		},
 		{
 			type: 'input',
 			name: 'version',
 			message: 'Version:',
-			default: '1.0.0',
+			default: defaults?.application?.['config/version'] ?? '1.0.0',
 		},
 		{
 			type: 'list',
 			name: 'template',
 			message: 'Project template:',
 			choices: ['2D', '3D'],
-			default: '2D',
 		},
 		{
 			type: 'list',
