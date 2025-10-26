@@ -1,23 +1,23 @@
 import chalk from 'chalk';
+import { execa } from 'execa';
 import fs from 'fs-extra';
 import path from 'path';
 import ini from 'ini';
 
-import { useEngine } from './use.js';
-import { installEngine } from './engine.js';
-import { initReqMet } from '../prompts/answers.js';
-
 import serveInitWizard from '../prompts/wizards/serveInitWizard.js';
 import type ProjectGodotIni from '../types/ProjectGodotIni.js';
+import { initReqMet } from '../prompts/answers.js';
 import type { Gpmrc } from '../types/gpmrc.js';
+import { installEngine } from './engine.js';
+import { useEngine } from './use.js';
+import { runPath } from '../utils/paths.js';
 
 export async function initProject() {
 	if (!(await initReqMet())) {
 		return;
 	}
 
-	const cwd = process.cwd();
-	const godotFilePath = path.join(cwd, 'project.godot');
+	const godotFilePath = path.join(runPath, 'project.godot');
 
 	// Step 1: detect Godot project
 	if (!(await fs.pathExists(godotFilePath))) {
@@ -38,20 +38,20 @@ export async function initProject() {
 		description: answers.description,
 		engine: answers.engineVersion,
 		template: answers.template.toLowerCase(),
-		language: answers.renderingTemplate.value.mono ? 'mono' : 'gdscript',
+		language: answers.renderingTemplate.mono ? 'mono' : 'gdscript',
 		author: process.env.USER || process.env.USERNAME || 'Unknown',
 		createdAt: new Date().toISOString(),
 		version: answers.version,
 	};
 
-	await fs.writeJson(path.join(cwd, 'gpm.json'), gpmConfig, { spaces: 2 });
+	await fs.writeJson(path.join(runPath, 'gpm.json'), gpmConfig, { spaces: 2 });
 
 	// Step 4: Create .gpmrc
 	const gpmrc: Gpmrc = {
 		engineVersion: answers.engineVersion,
-		mono: answers.renderingTemplate.value.mono,
+		mono: answers.renderingTemplate.mono,
 	};
-	await fs.writeJson(path.join(cwd, '.gpmrc'), gpmrc, { spaces: 2 });
+	await fs.writeJson(path.join(runPath, '.gpmrc'), gpmrc, { spaces: 2 });
 
 	console.log(chalk.green('✅ Configuration files created.'));
 
@@ -65,10 +65,9 @@ export async function initProject() {
 	// Step 6: Optional Git setup
 	if (answers.gitInit) {
 		try {
-			const { execa } = await import('execa');
-			await execa('git', ['init'], { cwd });
-			await execa('git', ['add', '.'], { cwd });
-			await execa('git', ['commit', '-m', 'Initialize GPM project'], { cwd });
+			await execa('git', ['init'], { cwd: runPath });
+			await execa('git', ['add', '.'], { cwd: runPath });
+			await execa('git', ['commit', '-m', 'Initialize GPM project'], { cwd: runPath });
 			console.log(chalk.green('✅ Initialized Git repository'));
 		} catch {
 			console.log(chalk.yellow('⚠️  Git not available, skipping repo setup.'));
@@ -76,7 +75,7 @@ export async function initProject() {
 	}
 
 	console.log(chalk.green(`\n🎉 Project '${answers.name}' created successfully!`));
-	console.log(chalk.gray(`Location: ${cwd}`));
+	console.log(chalk.gray(`Location: ${runPath}`));
 	console.log(chalk.green('\nNext steps:'));
 	console.log('  gpm run        (launch project in Godot editor)');
 	console.log('  gpm run test   (run test build)\n');
