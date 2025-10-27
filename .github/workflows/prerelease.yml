@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,122 +35,187 @@ jobs:
       - name: Run tests
         run: npm test
 
-      # ----------------------------------------------------------
-      # Determine change type (major/minor/patch) from linked PR labels
-      # ----------------------------------------------------------
-      - name: Determine change type from linked PR
-        id: changetype
-        shell: bash
+      - name: Install jq and gh
+        run: sudo apt-get update && sudo apt-get install -y jq gh
+      # --- Version Detection ---
+
+      - name: Get stable and latest prerelease
+        id: get_versions
         run: |
-          set -e
-          echo "Detecting change type..."
+          stable=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease==false) | .tagName' | sort -V | tail -n 1)
+          stable=${stable#v}
+          echo "Stable version: $stable"
 
-          # Find merged PR that produced this commit on develop
-          PR_NUMBER=$(gh pr list --base develop --state merged --json number,mergeCommit | jq -r ".[] | select(.mergeCommit.oid==\"${GITHUB_SHA}\") | .number" || true)
-          CHANGE="patch"  # Default
+          prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r ".[] | select(.isPrerelease==true and .tagName | startswith(\"${stable}-prerelease.\")) | .tagName" | sort -V | tail -n 1)
+          prerelease=${prerelease#v}
+          echo "Latest prerelease: $prerelease"
 
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Found PR #$PR_NUMBER for commit $GITHUB_SHA"
-            LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' || true)
-            echo "Labels: $LABELS"
-            if echo "$LABELS" | grep -iq "enhancement"; then
-              CHANGE="major"
-            elif echo "$LABELS" | grep -iq "bug"; then
-              CHANGE="minor"
-            elif echo "$LABELS" | grep -iq "documentation"; then
-              CHANGE="patch"
-            fi
+          echo "stable=$stable" >> $GITHUB_OUTPUT
+          echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
+
+      - name: Determine bump type
+        id: bump_type
+        run: |
+          labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')
+          echo "Labels: $labels"
+
+          bump="patch"
+          if echo "$labels" | grep -q "enhancement"; then bump="major"; fi
+          if echo "$labels" | grep -q "bug"; then bump="minor"; fi
+          if echo "$labels" | grep -q "documenting"; then bump="patch"; fi
+
+          echo "bump=$bump" >> $GITHUB_OUTPUT
+          echo "Bump type: $bump"
+
+      - name: Calculate new prerelease semver
+        id: bump
+        run: |
+          stable=${{ steps.get_versions.outputs.stable }}
+          prerelease=${{ steps.get_versions.outputs.prerelease }}
+          bump=${{ steps.bump_type.outputs.bump }}
+
+          inner_version=$(echo "$prerelease" | sed -n "s/^${stable}-prerelease\.//p")
+          inner_version=${inner_version:-"0.0.0"}
+
+          IFS='.' read -r pre_major pre_minor pre_patch <<<"$inner_version"
+
+          if [ "$bump" = "major" ]; then
+            pre_major=$((pre_major + 1)); pre_minor=0; pre_patch=0
+          elif [ "$bump" = "minor" ]; then
+            pre_minor=$((pre_minor + 1)); pre_patch=0
           else
-            echo "No PR found for this commit. Defaulting to patch."
+            pre_patch=$((pre_patch + 1))
           fi
 
-          echo "change=$CHANGE" >> "$GITHUB_OUTPUT"
-          echo "Change type detected: $CHANGE"
+          new_inner="${pre_major}.${pre_minor}.${pre_patch}"
+          new_tag="${stable}-prerelease.${new_inner}"
+
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+          echo "New prerelease tag: $new_tag"
+
+      # --- Update package.json ---
+
+      - name: Update package.json version
+        id: update_pkg
+        run: |
+          new_version="${{ steps.bump.outputs.new_tag }}"
+          new_version="${new_version#v}"
+          npm version --no-git-tag-version "$new_version"
+          echo "Updated package.json version to $new_version"
+
+      # --- Commit version bump ---
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add package.json package-lock.json || true
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}" || echo "No changes to commit"
+          git push origin develop
+
+      # --- Publish to npm (next tag) ---
+
+      - name: Publish prerelease to npm
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --tag next
 
-      # ----------------------------------------------------------
-      # Determine next prerelease version (safe, auto-incrementing)
-      # ----------------------------------------------------------
-      - name: Determine next prerelease version
-        id: version
-        shell: bash
+      # --- Generate grouped release notes and changelog ---
+
+      - name: Generate grouped release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          stable=${{ steps.get_versions.outputs.stable }}
+          prerelease=${{ steps.get_versions.outputs.prerelease }}
+          new_tag=${{ steps.bump.outputs.new_tag }}
+          pkg_name=$(jq -r .name package.json)
+          pkg_version=${new_tag#v}
 
-          CHANGE_TYPE=${{ steps.changetype.outputs.change || 'patch' }}
+          npm_url="https://www.npmjs.com/package/${pkg_name}/v/${pkg_version}"
 
-          echo "Determining next prerelease version (change type: $CHANGE_TYPE)"
-
-          # Get latest stable tag (may be empty)
-          CURRENT_STABLE=$(git tag --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 ) || true
-          if [ -z "${CURRENT_STABLE:-}" ]; then
-            CURRENT_STABLE="1.0.0"
-          fi
-          echo "Current stable: $CURRENT_STABLE"
-
-          # Get latest prerelease for that stable version
-          CURRENT_PRERELEASE=$(git tag --sort=-v:refname | grep -E "^${CURRENT_STABLE}-prerelease" | head -n 1 ) || true
-          echo "Current prerelease: ${CURRENT_PRERELEASE:-none}"
-
-          if [ -z "${CURRENT_PRERELEASE:-}" ]; then
-            # no prerelease yet — start at .0.0.1
-            NEW_TAG="${CURRENT_STABLE}-prerelease.0.0.1"
+          # Determine range for merged PRs
+          if [ -n "$prerelease" ]; then
+            last_tag="v${prerelease}"
           else
-            # Extract numeric suffix after "prerelease."
-            SUFFIX=$(echo "$CURRENT_PRERELEASE" | sed -E "s/^${CURRENT_STABLE}-prerelease\.?//")
+            last_tag=$(git tag --sort=-v:refname | tail -n 1)
+          fi
 
-            if [ -z "$SUFFIX" ]; then
-              a=0; b=0; c=1
+          compare_url="https://github.com/${{ github.repository }}/compare/${last_tag}...${new_tag}"
+
+          pr_data=$(gh pr list --state merged --base develop --json number,title,url,labels,author --jq '.')
+
+          group_prs() {
+            local label="$1"
+            local title="$2"
+            count=$(echo "$pr_data" | jq --arg label "$label" '[.[] | select(.labels[].name == $label)] | length')
+            echo "<details><summary><b>${title} (${count})</b></summary>"
+            echo ""
+            if [ "$count" -gt 0 ]; then
+              echo "$pr_data" | jq -r --arg label "$label" \
+                '.[] | select(.labels[].name == $label) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
             else
-              IFS='.' read -r a b c <<< "$SUFFIX"
-              a=${a:-0}; b=${b:-0}; c=${c:-0}
+              echo "_No changes in this category._"
             fi
+            echo ""
+            echo "</details>"
+            echo ""
+          }
 
-            case "$CHANGE_TYPE" in
-              major) a=$((a+1)); b=0; c=0 ;;
-              minor) b=$((b+1)); c=0 ;;
-              patch|*) c=$((c+1)) ;;
-            esac
+          # Compose release notes
+          {
+            echo "## 📦 ${pkg_name} ${pkg_version}"
+            echo ""
+            echo "### 🔗 [View on npm](${npm_url})"
+            echo "### 🔁 [Compare Changes](${compare_url})"
+            echo ""
+            echo "### ✅ Included Pull Requests"
+            echo ""
 
-            NEW_TAG="${CURRENT_STABLE}-prerelease.${a}.${b}.${c}"
-          fi
+            group_prs "enhancement" "🚀 Enhancements"
+            group_prs "bug" "🐛 Bug Fixes"
+            group_prs "documenting" "📝 Documentation"
+            group_prs "chore" "🧹 Chores"
+            group_prs "refactor" "🧩 Refactors"
 
-          echo "current_stable=$CURRENT_STABLE" >> "$GITHUB_OUTPUT"
-          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "Next prerelease version: $NEW_TAG"
+            unlabeled_count=$(echo "$pr_data" | jq '[.[] | select(.labels | length == 0)] | length')
+            echo "<details><summary><b>🔍 Other (${unlabeled_count})</b></summary>"
+            echo ""
+            if [ "$unlabeled_count" -gt 0 ]; then
+              echo "$pr_data" | jq -r '.[] | select(.labels | length == 0) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
+            else
+              echo "_No unlabeled PRs in this release._"
+            fi
+            echo ""
+            echo "</details>"
+            echo ""
+          } > release_notes.md
 
-      # ----------------------------------------------------------
-      # Create GitHub pre-release
-      # ----------------------------------------------------------
-      - name: Create GitHub pre-release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.new_tag }}
-          name: ${{ steps.version.outputs.new_tag }}
-          target_commitish: develop
-          prerelease: true
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Update CHANGELOG.md
+          echo "Updating CHANGELOG.md..."
+          today=$(date +"%Y-%m-%d")
+          {
+            echo "## ${pkg_version} - ${today}"
+            echo ""
+            cat release_notes.md
+            echo ""
+            cat CHANGELOG.md 2>/dev/null || true
+          } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
 
-      # ----------------------------------------------------------
-      # Build & Publish as prerelease (npm tag = next)
-      # ----------------------------------------------------------
-      - name: Build package
-        run: npm run build
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG for ${pkg_version}" || echo "No changelog update"
+          git push origin develop
 
-      - name: Set version in package.json
-        shell: bash
+          echo "release_notes=release_notes.md" >> $GITHUB_OUTPUT
+
+      # --- Create GitHub Pre-release ---
+
+      - name: Create GitHub Pre-release
         run: |
-          TAG=${{ steps.version.outputs.new_tag }}
-          echo "Setting package.json version to $TAG"
-          npm version --no-git-tag-version "$TAG"
-
-      - name: Publish to npm (with dist-tag next)
-        shell: bash
-        run: |
-          TAG=${{ steps.version.outputs.new_tag }}
-          echo "Publishing $TAG with npm dist-tag 'next'"
-          npm publish --access public --tag next
+          gh release create "${{ steps.bump.outputs.new_tag }}" \
+            --prerelease \
+            --target develop \
+            --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
+            --notes-file "${{ steps.notes.outputs.release_notes }}"
