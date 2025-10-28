@@ -1,7 +1,7 @@
 {
 	"name": "godot-project-manager",
 	"description": "A npm based Godot Project Manager - provides opinionated project setup and managemenet utilities ",
-	"version": "0.1.0",
+	"version": "1.0.0-prerelease.5.11.17",
 	"type": "module",
 	"author": "George Chambers (smegulater)",
 	"license": "MIT",
