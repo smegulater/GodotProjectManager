@@ -162,8 +162,6 @@ jobs:
 
           echo "stable=$stable" >> $GITHUB_OUTPUT
           echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Calculate new prerelease semver (aggregate PRs)
         id: bump
@@ -241,6 +239,12 @@ jobs:
         run: |
           new_version="${{ steps.bump.outputs.new_tag }}"
           new_version="${new_version#v}"
+
+          current_version=$(node -p "require('./package.json').version")
+          current_version="${current_version#v}"
+
+          echo "Bumping package.json from ${current_version} to ${new_version}"
+
           npm version --no-git-tag-version "$new_version"
           echo "Updated package.json version to $new_version"
 
@@ -254,20 +258,8 @@ jobs:
         run: |
           branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
 
-          git checkout develop
           git push origin --delete "$branch" 2>/dev/null || true 
           git checkout -b "$branch"
-
-          new_version="${{ steps.bump.outputs.new_tag }}"
-          new_version="${new_version#v}"
-
-          current_version=$(node -p "require('./package.json').version")
-          current_version="${current_version#v}"
-
-          echo "Bumping package.json from ${current_version} to ${new_version}"
-          npm version "${new_version}" --no-git-tag-version 
-
-          echo "Updated package.json version to $new_version"
 
           git add package.json package-lock.json || true
 
@@ -277,8 +269,6 @@ jobs:
 
       - name: Create pull request
         id: create_pr
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           title="chore: bump version to ${{ steps.bump.outputs.new_tag }}"
           body="Automated version bump to ${{ steps.bump.outputs.new_tag }}"
@@ -287,24 +277,18 @@ jobs:
           echo "Created PR: $pr_url"
 
       - name: Approve PR
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
           gh pr review $pr_number --approve
           echo "Approved PR #$pr_number"
 
       - name: Enable auto-merge
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
           gh pr merge $pr_number --auto --squash
           echo "Auto-merge enabled for PR #$pr_number"
 
       - name: Wait for auto-merge to complete
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
           echo "🕓 Waiting for PR #$pr_number to be merged..."
@@ -332,15 +316,11 @@ jobs:
 
       # --- Publish to npm (next tag) ---
       - name: Publish prerelease to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag next
 
       # --- Generate grouped release notes and changelog ---
       - name: Generate grouped release notes
         id: notes
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           stable=${{ steps.get_versions.outputs.stable }}
           prerelease=${{ steps.get_versions.outputs.prerelease }}
