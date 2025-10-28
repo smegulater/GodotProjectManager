@@ -47,16 +47,33 @@ jobs:
       - name: Get stable and latest prerelease
         id: get_versions
         run: |
+          set -euo pipefail
+
           stable=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease==false) | .tagName' | sort -V | tail -n 1)
+          
+          if [ -z "$stable" ]; then
+            echo "⚠️  No stable releases found — defaulting to 1.0.0"
+            stable="1.0.0"
+          fi
+          
           stable=${stable#v}
           echo "Stable version: $stable"
 
-          prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r ".[] | select(.isPrerelease==true and .tagName | startswith(\"${stable}-prerelease.\")) | .tagName" | sort -V | tail -n 1)
+          # Get latest prerelease matching that stable base
+          prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r --arg stable "${stable}-prerelease" '.[] | select(.isPrerelease==true and (.tagName | type=="string") and (.tagName | startswith($stable))) | .tagName' | sort -V | tail -n 1)
+          
+          if [ -z "$prerelease" ]; then
+            echo "⚠️  No prereleases found — defaulting to 0.0.0 and will be bumped based on PR labels"
+            prerelease="0.0.0"
+          fi
+          
           prerelease=${prerelease#v}
           echo "Latest prerelease: $prerelease"
 
           echo "stable=$stable" >> $GITHUB_OUTPUT
           echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Determine bump type
         id: bump_type
@@ -97,9 +114,7 @@ jobs:
 
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
           echo "New prerelease tag: $new_tag"
-
       # --- Update package.json ---
-
       - name: Update package.json version
         id: update_pkg
         run: |
@@ -224,3 +239,4 @@ jobs:
             --target develop \
             --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
             --notes-file "${{ steps.notes.outputs.release_notes }}"
+
