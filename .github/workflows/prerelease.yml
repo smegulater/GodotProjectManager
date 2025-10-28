@@ -122,119 +122,118 @@ jobs:
 
       # --- Commit version bump ---
 
-#
-#      - name: Commit version bump
-#        run: |
-#          git config user.name "github-actions"
-#          git config user.email "github-actions@github.com"
-#          git add package.json package-lock.json || true
-#          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}" || echo "No changes to commit"
-#          git push origin develop
-#
-#      # --- Publish to npm (next tag) ---
-#
-#      - name: Publish prerelease to npm
-#        env:
-#          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-#        run: npm publish --tag next
-#
-#      # --- Generate grouped release notes and changelog ---
-#
-#      - name: Generate grouped release notes
-#        id: notes
-#        env:
-#          GH_TOKEN: ${{ github.token }}
-#        run: |
-#          stable=${{ steps.get_versions.outputs.stable }}
-#          prerelease=${{ steps.get_versions.outputs.prerelease }}
-#          new_tag=${{ steps.bump.outputs.new_tag }}
-#          pkg_name=$(jq -r .name package.json)
-#          pkg_version=${new_tag#v}
-#
-#          npm_url="https://www.npmjs.com/package/${pkg_name}/v/${pkg_version}"
-#
-#          # Determine range for merged PRs
-#          if [ -n "$prerelease" ]; then
-#            last_tag="v${prerelease}"
-#          else
-#            last_tag=$(git tag --sort=-v:refname | tail -n 1)
-#          fi
-#
-#          compare_url="https://github.com/${{ github.repository }}/compare/${last_tag}...${new_tag}"
-#
-#          pr_data=$(gh pr list --state merged --base develop --json number,title,url,labels,author --jq '.')
-#
-#          group_prs() {
-#            local label="$1"
-#            local title="$2"
-#            count=$(echo "$pr_data" | jq --arg label "$label" '[.[] | select(.labels[].name == $label)] | length')
-#            echo "<details><summary><b>${title} (${count})</b></summary>"
-#            echo ""
-#            if [ "$count" -gt 0 ]; then
-#              echo "$pr_data" | jq -r --arg label "$label" \
-#                '.[] | select(.labels[].name == $label) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
-#            else
-#              echo "_No changes in this category._"
-#            fi
-#            echo ""
-#            echo "</details>"
-#            echo ""
-#          }
-#
-#          # Compose release notes
-#          {
-#            echo "## 📦 ${pkg_name} ${pkg_version}"
-#            echo ""
-#            echo "### 🔗 [View on npm](${npm_url})"
-#            echo "### 🔁 [Compare Changes](${compare_url})"
-#            echo ""
-#            echo "### ✅ Included Pull Requests"
-#            echo ""
-#
-#            group_prs "enhancement" "🚀 Enhancements"
-#            group_prs "bug" "🐛 Bug Fixes"
-#            group_prs "documenting" "📝 Documentation"
-#            group_prs "chore" "🧹 Chores"
-#            group_prs "refactor" "🧩 Refactors"
-#
-#            unlabeled_count=$(echo "$pr_data" | jq '[.[] | select(.labels | length == 0)] | length')
-#            echo "<details><summary><b>🔍 Other (${unlabeled_count})</b></summary>"
-#            echo ""
-#            if [ "$unlabeled_count" -gt 0 ]; then
-#              echo "$pr_data" | jq -r '.[] | select(.labels | length == 0) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
-#            else
-#              echo "_No unlabeled PRs in this release._"
-#            fi
-#            echo ""
-#            echo "</details>"
-#            echo ""
-#          } > release_notes.md
-#
-#          # Update CHANGELOG.md
-#          echo "Updating CHANGELOG.md..."
-#          today=$(date +"%Y-%m-%d")
-#          {
-#            echo "## ${pkg_version} - ${today}"
-#            echo ""
-#            cat release_notes.md
-#            echo ""
-#            cat CHANGELOG.md 2>/dev/null || true
-#          } > CHANGELOG.tmp
-#          mv CHANGELOG.tmp CHANGELOG.md
-#
-#          git add CHANGELOG.md
-#          git commit -m "docs: update CHANGELOG for ${pkg_version}" || echo "No changelog update"
-#          git push origin develop
-#
-#          echo "release_notes=release_notes.md" >> $GITHUB_OUTPUT
-#
-#      # --- Create GitHub Pre-release ---
-#
-#      - name: Create GitHub Pre-release
-#        run: |
-#          gh release create "${{ steps.bump.outputs.new_tag }}" \
-#            --prerelease \
-#            --target develop \
-#            --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
-#            --notes-file "${{ steps.notes.outputs.release_notes }}"
-#
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add package.json package-lock.json || true
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}" || echo "No changes to commit"
+          git push origin develop
+
+      # --- Publish to npm (next tag) ---
+
+      - name: Publish prerelease to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --tag next
+
+      # --- Generate grouped release notes and changelog ---
+
+      - name: Generate grouped release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          stable=${{ steps.get_versions.outputs.stable }}
+          prerelease=${{ steps.get_versions.outputs.prerelease }}
+          new_tag=${{ steps.bump.outputs.new_tag }}
+          pkg_name=$(jq -r .name package.json)
+          pkg_version=${new_tag#v}
+
+          npm_url="https://www.npmjs.com/package/${pkg_name}/v/${pkg_version}"
+
+          # Determine range for merged PRs
+          if [ -n "$prerelease" ]; then
+            last_tag="v${prerelease}"
+          else
+            last_tag=$(git tag --sort=-v:refname | tail -n 1)
+          fi
+
+          compare_url="https://github.com/${{ github.repository }}/compare/${last_tag}...${new_tag}"
+
+          pr_data=$(gh pr list --state merged --base develop --json number,title,url,labels,author --jq '.')
+
+          group_prs() {
+            local label="$1"
+            local title="$2"
+            count=$(echo "$pr_data" | jq --arg label "$label" '[.[] | select(.labels[].name == $label)] | length')
+            echo "<details><summary><b>${title} (${count})</b></summary>"
+            echo ""
+            if [ "$count" -gt 0 ]; then
+              echo "$pr_data" | jq -r --arg label "$label" \
+                '.[] | select(.labels[].name == $label) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
+            else
+              echo "_No changes in this category._"
+            fi
+            echo ""
+            echo "</details>"
+            echo ""
+          }
+
+          # Compose release notes
+          {
+            echo "## 📦 ${pkg_name} ${pkg_version}"
+            echo ""
+            echo "### 🔗 [View on npm](${npm_url})"
+            echo "### 🔁 [Compare Changes](${compare_url})"
+            echo ""
+            echo "### ✅ Included Pull Requests"
+            echo ""
+
+            group_prs "enhancement" "🚀 Enhancements"
+            group_prs "bug" "🐛 Bug Fixes"
+            group_prs "documenting" "📝 Documentation"
+            group_prs "chore" "🧹 Chores"
+            group_prs "refactor" "🧩 Refactors"
+
+            unlabeled_count=$(echo "$pr_data" | jq '[.[] | select(.labels | length == 0)] | length')
+            echo "<details><summary><b>🔍 Other (${unlabeled_count})</b></summary>"
+            echo ""
+            if [ "$unlabeled_count" -gt 0 ]; then
+              echo "$pr_data" | jq -r '.[] | select(.labels | length == 0) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
+            else
+              echo "_No unlabeled PRs in this release._"
+            fi
+            echo ""
+            echo "</details>"
+            echo ""
+          } > release_notes.md
+
+          # Update CHANGELOG.md
+          echo "Updating CHANGELOG.md..."
+          today=$(date +"%Y-%m-%d")
+          {
+            echo "## ${pkg_version} - ${today}"
+            echo ""
+            cat release_notes.md
+            echo ""
+            cat CHANGELOG.md 2>/dev/null || true
+          } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG for ${pkg_version}" || echo "No changelog update"
+          git push origin develop
+
+          echo "release_notes=release_notes.md" >> $GITHUB_OUTPUT
+
+      # --- Create GitHub Pre-release ---
+
+      - name: Create GitHub Pre-release
+        run: |
+          gh release create "${{ steps.bump.outputs.new_tag }}" \
+            --prerelease \
+            --target develop \
+            --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
+            --notes-file "${{ steps.notes.outputs.release_notes }}"
+
