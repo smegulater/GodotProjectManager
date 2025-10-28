@@ -19,13 +19,15 @@ jobs:
 
       - name: Ensure PR has a valid label
         run: |
+          pr_number=${{ github.event.pull_request.number }}
+          echo "Checking labels for PR #$pr_number..."
           labels=$(gh pr view "$pr_number" --json labels -q '.labels[].name' | tr '\n' ' ')
           echo "Labels on PR: $labels"
 
-          if [[ "$labels" != *"enhancement"* || "$labels" != *"bug"* || "$labels" != *"documentation"* ]]; then
-            echo "❌ PR must have one of the following labels: enhancement, bug, documentation"
-            exit 1
-          fi
+                if [[ "$labels" != *"enhancement"* && "$labels" != *"bug"* && "$labels" != *"documentation"* ]]; then
+                  echo "❌ PR must have one of the following labels: enhancement, bug, documentation"
+                  exit 1
+                fi
         env:
           GH_TOKEN: ${{ github.token }}
   lint:
