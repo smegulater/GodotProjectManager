@@ -20,7 +20,7 @@ jobs:
           labels=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}' | tr '\n' ' ')
           echo "Labels on PR: $labels"
 
-          if [[ "$labels" != *"enhancement"* && "$labels" != *"bug"* && "$labels" != *"documentation"* ]]; then
+          if [[ "$labels" != *"enhancement"* || "$labels" != *"bug"* || "$labels" != *"documentation"* ]]; then
             echo "❌ PR must have one of the following labels: enhancement, bug, documentation"
             exit 1
           fi
