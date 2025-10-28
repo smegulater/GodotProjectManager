@@ -253,12 +253,18 @@ jobs:
         - name: Create version bump branch
           run: |
             branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
+            
             git checkout -b "$branch"
-            git pull
+            git fetch origin $branch || true
+            git rebase origin/$branch || true
+            
             new_version="${{ steps.bump.outputs.new_tag }}"
             new_version="${new_version#v}"
+            
             npm version --no-git-tag-version "$new_version"
+            
             echo "Updated package.json version to $new_version"
+            
             git add package.json package-lock.json || true
             git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}"
             git push origin "$branch"
