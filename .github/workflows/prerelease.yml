@@ -2,9 +2,12 @@ name: Prerelease (develop)
 
 on:
   pull_request:
-    branches: [develop]
+    types: [closed]
+    branches:
+      - develop
   push:
-    branches: [develop]
+    branches:
+      - develop
 
 jobs:
   prerelease:
