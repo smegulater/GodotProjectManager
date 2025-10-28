@@ -6,16 +6,13 @@ on:
       - develop
 
 jobs:
-  prerelease:
+  check-autodeploy-pipeline-should-run:
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
       issues: read
       pull-requests: read
-
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -72,6 +69,27 @@ jobs:
         run: |
           echo "⚠️  Skipping prerelease — either no merged PR or automation labels detected."
           exit 78  # GitHub's special neutral exit code (job stops, marked as skipped)
+
+  run-tests:
+    runs-on: ubuntu-latest
+    needs: check-autodeploy-pipeline-should-run
+
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
       # --- prepare enviornment
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -85,275 +103,315 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Install jq and gh
-        run: sudo apt-get update && sudo apt-get install -y jq gh
+  bump-package-version-and-deploy:
+      runs-on: ubuntu-latest
+      needs: check-autodeploy-pipeline-should-run
 
-      # --- Version Detection ---
-      - name: Get stable and latest prerelease
-        id: get_versions
-        run: |
-          set -euo pipefail
+      permissions:
+        contents: write
+        issues: read
+        pull-requests: read
 
-          stable=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease==false) | .tagName' | sort -V | tail -n 1)
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        GH_TOKEN: ${{ github.token }}
 
-          if [ -z "$stable" ]; then
-            echo "⚠️  No stable releases found — defaulting to 1.0.0"
-            stable="1.0.0"
-          fi
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+          with:
+            ref: develop
+            fetch-depth: 0
 
-          stable=${stable#v}
-          echo "Stable version: $stable"
+        # --- prepare enviornment
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 20
+            registry-url: "https://registry.npmjs.org/"
 
-          # Get latest prerelease matching that stable base
-          prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r --arg stable "${stable}-prerelease" '.[] | select(.isPrerelease==true and (.tagName | type=="string") and (.tagName | startswith($stable))) | .tagName' | sort -V | tail -n 1)
+        - name: Install dependencies
+          run: npm ci
 
-          if [ -z "$prerelease" ]; then
-            echo "⚠️  No prereleases found — defaulting to 0.0.0 and will be bumped based on PR labels"
-            prerelease="0.0.0"
-          fi
+        # --- Version Detection ---
+        - name: Get latest stable and prerelease
+          id: get_versions
+          run: |
+            set -euo pipefail
 
-          prerelease=${prerelease#v}
-          echo "Latest prerelease: $prerelease"
+            stable=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease==false) | .tagName' | sort -V | tail -n 1)
 
-          echo "stable=$stable" >> $GITHUB_OUTPUT
-          echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Determine bump type
-        id: bump_type
-        run: |
-          labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' \
-            | jq -r 'if type == "array" and length > 0 then .[].name else empty end')
-          echo "Labels: $labels"
-
-          bump="patch"
-          if echo "$labels" | grep -q "documentation"; then bump="patch"; fi
-          if echo "$labels" | grep -q "bug"; then bump="minor"; fi
-          if echo "$labels" | grep -q "enhancement"; then bump="major"; fi
-
-          echo "bump=$bump" >> $GITHUB_OUTPUT
-          echo "Bump type: $bump"
-
-      - name: Calculate new prerelease semver
-        id: bump
-        run: |
-          stable=${{ steps.get_versions.outputs.stable }}
-          prerelease=${{ steps.get_versions.outputs.prerelease }}
-
-          labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' \
-            | jq -r 'if type == "array" and length > 0 then .[].name else empty end')
-          echo "Labels: $labels"
-
-
-
-          inner_version=$(echo "$prerelease" | sed -n "s/^${stable}-prerelease\.//p")
-          inner_version=${inner_version:-"0.0.0"}
-
-          IFS='.' read -r pre_major pre_minor pre_patch <<<"$inner_version"
-
-          # --- Apply label-based bump rules ---
-
-          if [[ "$labels" == *"enhancement"* ]]; then
-            echo "🔼 Enhancement detected — bumping MAJOR"
-            pre_major=$((pre_major + 1))
-            pre_minor=0
-            pre_patch=0
-          else
-            if [[ "$labels" == *"bug"* ]]; then
-              echo "🐞 Bug detected — bumping MINOR"
-              pre_minor=$((pre_minor + 1))
+            if [ -z "$stable" ]; then
+              echo "⚠️  No stable releases found — defaulting to 1.0.0"
+              stable="1.0.0"
             fi
 
-            if [[ "$labels" == *"documentation"* ]]; then
-              echo "📘 Documentation detected — bumping PATCH"
+            stable=${stable#v}
+            echo "Stable version: $stable"
+
+            # Get latest prerelease matching that stable base
+            prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r --arg stable "${stable}-prerelease" '.[] | select(.isPrerelease==true and (.tagName | type=="string") and (.tagName | startswith($stable))) | .tagName' | sort -V | tail -n 1)
+
+            if [ -z "$prerelease" ]; then
+              echo "⚠️  No prereleases found — defaulting to 0.0.0 and will be bumped based on PR labels"
+              prerelease="0.0.0"
+            fi
+
+            prerelease=${prerelease#v}
+            echo "Latest prerelease: $prerelease"
+
+            echo "stable=$stable" >> $GITHUB_OUTPUT
+            echo "prerelease=$prerelease" >> $GITHUB_OUTPUT
+          env:
+            GH_TOKEN: ${{ github.token }}
+
+        - name: Calculate new prerelease semver (aggregate PRs)
+          id: bump
+          run: |
+            set -euo pipefail
+
+            stable=${{ steps.get_versions.outputs.stable }}
+            prerelease=${{ steps.get_versions.outputs.prerelease }}
+
+            echo "Stable version: $stable"
+            echo "Latest prerelease: $prerelease"
+
+            # --- Extract the inner prerelease version (always safe) ---
+            inner_version=$(echo "$prerelease" | sed -n "s/^${stable}-prerelease\.//p")
+            inner_version=${inner_version:-"0.0.0"}
+            IFS='.' read -r pre_major pre_minor pre_patch <<<"$inner_version"
+            echo "Current prerelease inner version: ${pre_major}.${pre_minor}.${pre_patch}"
+
+            # --- Determine baseline ---
+            if [[ "$inner_version" == "0.0.0" ]]; then
+              echo "⚠️ First prerelease for $stable — using stable tag as baseline."
+              baseline_tag="$stable"
+            else
+              baseline_tag="$prerelease"
+            fi
+            echo "Baseline tag: $baseline_tag"
+
+            # --- Try to resolve baseline tag SHA safely ---
+            if git rev-parse "$baseline_tag" >/dev/null 2>&1; then
+              last_tag_sha=$(git rev-list -n 1 "$baseline_tag")
+            else
+              echo "⚠️ Baseline tag $baseline_tag does not exist — using earliest commit."
+              last_tag_sha=$(git rev-list --max-parents=0 HEAD | head -n 1)
+            fi
+            echo "Baseline commit: $last_tag_sha"
+
+            # --- Gather merged PRs since baseline ---
+            echo "🔍 Gathering merged PRs into develop since $baseline_tag..."
+            merged_prs=$(gh pr list --base develop --state merged --limit 100 --json number,mergedAt,labels,mergeCommit --jq \
+              ".[] | select(.mergeCommit.oid != null) | select(.mergedAt != null) | {number, mergedAt, labels: [.labels[].name], mergeCommit: .mergeCommit.oid}" \
+              | jq -s 'sort_by(.mergedAt)')
+
+            if [ -z "$merged_prs" ]; then
+              echo "⚠️ No merged PRs found — defaulting to patch bump."
               pre_patch=$((pre_patch + 1))
-            fi
-          fi
-
-          new_inner="${pre_major}.${pre_minor}.${pre_patch}"
-          new_tag="${stable}-prerelease.${new_inner}"
-
-          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
-          echo "New prerelease tag: $new_tag"
-
-      # --- Update package.json ---
-      - name: Update package.json version
-        id: update_pkg
-        run: |
-          new_version="${{ steps.bump.outputs.new_tag }}"
-          new_version="${new_version#v}"
-          npm version --no-git-tag-version "$new_version"
-          echo "Updated package.json version to $new_version"
-
-      # --- Commit version bump ---
-      - name: Set up Git identity
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      - name: Create version bump branch
-        run: |
-          branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
-          git checkout -b "$branch"
-          git add package.json package-lock.json || true
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}"
-          git push origin "$branch"
-
-      - name: Create pull request
-        id: create_pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          title="chore: bump version to ${{ steps.bump.outputs.new_tag }}"
-          body="Automated version bump to ${{ steps.bump.outputs.new_tag }}"
-          pr_url=$(gh pr create --title "$title" --body "$body" --base develop --head "auto/bump-${{ steps.bump.outputs.new_tag }}" --label "automation,version-bump" --fill)
-          echo "pr_url=$pr_url" >> $GITHUB_OUTPUT
-          echo "Created PR: $pr_url"
-
-      - name: Approve PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
-          gh pr review $pr_number --approve
-          echo "Approved PR #$pr_number"
-
-      - name: Enable auto-merge
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
-          gh pr merge $pr_number --auto --squash
-          echo "Auto-merge enabled for PR #$pr_number"
-      
-      - name: Wait for auto-merge to complete
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
-          echo "🕓 Waiting for PR #$pr_number to be merged..."
-
-          for i in {1..30}; do
-            state=$(gh pr view $pr_number --json state -q '.state')
-            echo "  ➤ Attempt $i: PR state = $state"
-
-            if [[ "$state" == "MERGED" ]]; then
-              echo "✅ PR #$pr_number successfully merged!"
-              exit 0
-            fi
-
-            if [[ "$state" == "CLOSED" ]]; then
-              echo "❌ PR #$pr_number was closed without merging."
-              exit 1
-            fi
-
-            # Wait 10 seconds between checks (max ~5 minutes)
-            sleep 10
-          done
-
-          echo "❌ Timed out waiting for PR #$pr_number to merge after 5 minutes."
-          exit 1
-
-      # --- Publish to npm (next tag) ---
-      - name: Publish prerelease to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --tag next
-
-      # --- Generate grouped release notes and changelog ---
-      - name: Generate grouped release notes
-        id: notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          stable=${{ steps.get_versions.outputs.stable }}
-          prerelease=${{ steps.get_versions.outputs.prerelease }}
-          new_tag=${{ steps.bump.outputs.new_tag }}
-          pkg_name=$(jq -r .name package.json)
-          pkg_version=${new_tag#v}
-
-          npm_url="https://www.npmjs.com/package/${pkg_name}/v/${pkg_version}"
-
-          # Determine range for merged PRs
-          if [ -n "$prerelease" ]; then
-            last_tag="v${prerelease}"
-          else
-            last_tag=$(git tag --sort=-v:refname | tail -n 1)
-          fi
-
-          compare_url="https://github.com/${{ github.repository }}/compare/${last_tag}...${new_tag}"
-
-          pr_data=$(gh pr list --state merged --base develop --json number,title,url,labels,author --jq '.')
-
-          group_prs() {
-            local label="$1"
-            local title="$2"
-            count=$(echo "$pr_data" | jq --arg label "$label" '[.[] | select(.labels[].name == $label)] | length')
-            echo "<details><summary><b>${title} (${count})</b></summary>"
-            echo ""
-            if [ "$count" -gt 0 ]; then
-              echo "$pr_data" | jq -r --arg label "$label" \
-                '.[] | select(.labels[].name == $label) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
             else
-              echo "_No changes in this category._"
+              echo "Found merged PRs: $(echo "$merged_prs" | jq 'length')"
+
+              # --- Count labels across all merged PRs ---
+              enhancement_count=$(echo "$merged_prs" | jq '[.[] | select(.labels | any(. == "enhancement"))] | length')
+              bug_count=$(echo "$merged_prs" | jq '[.[] | select(.labels | any(. == "bug"))] | length')
+              doc_count=$(echo "$merged_prs" | jq '[.[] | select(.labels | any(. == "documentation"))] | length')
+              unlabeled_count=$(echo "$merged_prs" | jq '[.[] | select(.labels | length == 0)] | length')
+
+              echo "Enhancement PRs: $enhancement_count"
+              echo "Bug PRs: $bug_count"
+              echo "Documentation PRs: $doc_count"
+              echo "Unlabeled PRs: $unlabeled_count"
+
+              # --- Apply bump rules ---
+              pre_major=$((pre_major + enhancement_count))
+              pre_minor=$((pre_minor + bug_count))
+              pre_patch=$((pre_patch + doc_count + unlabeled_count))
             fi
-            echo ""
-            echo "</details>"
-            echo ""
-          }
 
-          # Compose release notes
-          {
-            echo "## 📦 ${pkg_name} ${pkg_version}"
-            echo ""
-            echo "### 🔗 [View on npm](${npm_url})"
-            echo "### 🔁 [Compare Changes](${compare_url})"
-            echo ""
-            echo "### ✅ Included Pull Requests"
-            echo ""
+            new_inner="${pre_major}.${pre_minor}.${pre_patch}"
+            new_tag="${stable}-prerelease.${new_inner}"
 
-            group_prs "enhancement" "🚀 Enhancements"
-            group_prs "bug" "🐛 Bug Fixes"
-            group_prs "documenting" "📝 Documentation"
-            group_prs "chore" "🧹 Chores"
-            group_prs "refactor" "🧩 Refactors"
+            echo "✅ New prerelease tag: $new_tag"
+            echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
 
-            unlabeled_count=$(echo "$pr_data" | jq '[.[] | select(.labels | length == 0)] | length')
-            echo "<details><summary><b>🔍 Other (${unlabeled_count})</b></summary>"
-            echo ""
-            if [ "$unlabeled_count" -gt 0 ]; then
-              echo "$pr_data" | jq -r '.[] | select(.labels | length == 0) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
+        # --- Update package.json ---
+        - name: Update package.json version
+          id: update_pkg
+          run: |
+            new_version="${{ steps.bump.outputs.new_tag }}"
+            new_version="${new_version#v}"
+            npm version --no-git-tag-version "$new_version"
+            echo "Updated package.json version to $new_version"
+
+        # --- Commit version bump ---
+        - name: Set up Git identity
+          run: |
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        - name: Create version bump branch
+          run: |
+            branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
+            git checkout -b "$branch"
+            git add package.json package-lock.json || true
+            git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}"
+            git push origin "$branch"
+
+        - name: Create pull request
+          id: create_pr
+          env:
+            GH_TOKEN: ${{ github.token }}
+          run: |
+            title="chore: bump version to ${{ steps.bump.outputs.new_tag }}"
+            body="Automated version bump to ${{ steps.bump.outputs.new_tag }}"
+            pr_url=$(gh pr create --title "$title" --body "$body" --base develop --head "auto/bump-${{ steps.bump.outputs.new_tag }}" --label "automation,version-bump" --fill)
+            echo "pr_url=$pr_url" >> $GITHUB_OUTPUT
+            echo "Created PR: $pr_url"
+
+        - name: Approve PR
+          env:
+            GH_TOKEN: ${{ github.token }}
+          run: |
+            pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
+            gh pr review $pr_number --approve
+            echo "Approved PR #$pr_number"
+
+        - name: Enable auto-merge
+          env:
+            GH_TOKEN: ${{ github.token }}
+          run: |
+            pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
+            gh pr merge $pr_number --auto --squash
+            echo "Auto-merge enabled for PR #$pr_number"
+
+        - name: Wait for auto-merge to complete
+          env:
+            GH_TOKEN: ${{ github.token }}
+          run: |
+            pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
+            echo "🕓 Waiting for PR #$pr_number to be merged..."
+
+            for i in {1..30}; do
+              state=$(gh pr view $pr_number --json state -q '.state')
+              echo "  ➤ Attempt $i: PR state = $state"
+
+              if [[ "$state" == "MERGED" ]]; then
+                echo "✅ PR #$pr_number successfully merged!"
+                exit 0
+              fi
+
+              if [[ "$state" == "CLOSED" ]]; then
+                echo "❌ PR #$pr_number was closed without merging."
+                exit 1
+              fi
+
+              # Wait 10 seconds between checks (max ~5 minutes)
+              sleep 10
+            done
+
+            echo "❌ Timed out waiting for PR #$pr_number to merge after 5 minutes."
+            exit 1
+
+        # --- Publish to npm (next tag) ---
+        - name: Publish prerelease to npm
+          env:
+            NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          run: npm publish --tag next
+
+        # --- Generate grouped release notes and changelog ---
+        - name: Generate grouped release notes
+          id: notes
+          env:
+            GH_TOKEN: ${{ github.token }}
+          run: |
+            stable=${{ steps.get_versions.outputs.stable }}
+            prerelease=${{ steps.get_versions.outputs.prerelease }}
+            new_tag=${{ steps.bump.outputs.new_tag }}
+            pkg_name=$(jq -r .name package.json)
+            pkg_version=${new_tag#v}
+
+            npm_url="https://www.npmjs.com/package/${pkg_name}/v/${pkg_version}"
+
+            # Determine range for merged PRs
+            if [ -n "$prerelease" ]; then
+              last_tag="v${prerelease}"
             else
-              echo "_No unlabeled PRs in this release._"
+              last_tag=$(git tag --sort=-v:refname | tail -n 1)
             fi
-            echo ""
-            echo "</details>"
-            echo ""
-          } > release_notes.md
 
-          # Update CHANGELOG.md
-          echo "Updating CHANGELOG.md..."
-          today=$(date +"%Y-%m-%d")
-          {
-            echo "## ${pkg_version} - ${today}"
-            echo ""
-            cat release_notes.md
-            echo ""
-            cat CHANGELOG.md 2>/dev/null || true
-          } > CHANGELOG.tmp
-          mv CHANGELOG.tmp CHANGELOG.md
+            compare_url="https://github.com/${{ github.repository }}/compare/${last_tag}...${new_tag}"
 
-          git add CHANGELOG.md
-          git commit -m "docs: update CHANGELOG for ${pkg_version}" || echo "No changelog update"
-          git push origin develop
+            pr_data=$(gh pr list --state merged --base develop --json number,title,url,labels,author --jq '.')
 
-          echo "release_notes=release_notes.md" >> $GITHUB_OUTPUT
+            group_prs() {
+              local label="$1"
+              local title="$2"
+              count=$(echo "$pr_data" | jq --arg label "$label" '[.[] | select(.labels[].name == $label)] | length')
+              echo "<details><summary><b>${title} (${count})</b></summary>"
+              echo ""
+              if [ "$count" -gt 0 ]; then
+                echo "$pr_data" | jq -r --arg label "$label" \
+                  '.[] | select(.labels[].name == $label) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
+              else
+                echo "_No changes in this category._"
+              fi
+              echo ""
+              echo "</details>"
+              echo ""
+            }
 
-      # --- Create GitHub Pre-release ---
-      - name: Create GitHub Pre-release
-        run: |
-          gh release create "${{ steps.bump.outputs.new_tag }}" \
-            --prerelease \
-            --target develop \
-            --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
-            --notes-file "${{ steps.notes.outputs.release_notes }}"
+            # Compose release notes
+            {
+              echo "## 📦 ${pkg_name} ${pkg_version}"
+              echo ""
+              echo "### 🔗 [View on npm](${npm_url})"
+              echo "### 🔁 [Compare Changes](${compare_url})"
+              echo ""
+              echo "### ✅ Included Pull Requests"
+              echo ""
+
+              group_prs "enhancement" "🚀 Enhancements"
+              group_prs "bug" "🐛 Bug Fixes"
+              group_prs "documenting" "📝 Documentation"
+              group_prs "chore" "🧹 Chores"
+              group_prs "refactor" "🧩 Refactors"
+
+              unlabeled_count=$(echo "$pr_data" | jq '[.[] | select(.labels | length == 0)] | length')
+              echo "<details><summary><b>🔍 Other (${unlabeled_count})</b></summary>"
+              echo ""
+              if [ "$unlabeled_count" -gt 0 ]; then
+                echo "$pr_data" | jq -r '.[] | select(.labels | length == 0) | "- [#\(.number)](\(.url)) \(.title) — @\(.author.login)"'
+              else
+                echo "_No unlabeled PRs in this release._"
+              fi
+              echo ""
+              echo "</details>"
+              echo ""
+            } > release_notes.md
+
+            # Update CHANGELOG.md
+            echo "Updating CHANGELOG.md..."
+            today=$(date +"%Y-%m-%d")
+            {
+              echo "## ${pkg_version} - ${today}"
+              echo ""
+              cat release_notes.md
+              echo ""
+              cat CHANGELOG.md 2>/dev/null || true
+            } > CHANGELOG.tmp
+            mv CHANGELOG.tmp CHANGELOG.md
+
+            git add CHANGELOG.md
+            git commit -m "docs: update CHANGELOG for ${pkg_version}" || echo "No changelog update"
+            git push origin develop
+
+            echo "release_notes=release_notes.md" >> $GITHUB_OUTPUT
+
+        # --- Create GitHub Pre-release ---
+        - name: Create GitHub Pre-release
+          run: |
+            gh release create "${{ steps.bump.outputs.new_tag }}" \
+              --prerelease \
+              --target develop \
+              --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
+              --notes-file "${{ steps.notes.outputs.release_notes }}"
