@@ -10,8 +10,8 @@ permissions:
   checks: write
 
 jobs:
-  lint:
-    name: Lint
+  pre-checks:
+    name: Ensure PR has a valid label
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +24,11 @@ jobs:
             echo "❌ PR must have one of the following labels: enhancement, bug, documentation"
             exit 1
           fi
-          
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node
