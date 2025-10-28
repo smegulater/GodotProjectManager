@@ -56,7 +56,8 @@ jobs:
           stable=${stable#v}
           echo "Stable version: $stable"
 
-          prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r ".[] | select(.isPrerelease==true and .tagName | startswith(\"${stable}-prerelease.\")) | .tagName" | sort -V | tail -n 1)
+          # Get latest prerelease matching that stable base
+          prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r --arg stable "${stable}-prerelease" '.[] | select(.isPrerelease==true and (.tagName | type=="string") and (.tagName | startswith($stable))) | .tagName' | sort -V | tail -n 1)
           
           if [ -z "$prerelease" ]; then
             echo "⚠️  No prereleases found — defaulting to 0.0.0 and will be bumped based on PR labels"
