@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Ensure PR has a valid label
         run: |
           labels=$(gh pr view "$pr_number" --json labels -q '.labels[].name' | tr '\n' ' ')
