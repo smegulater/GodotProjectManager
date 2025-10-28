@@ -24,6 +24,55 @@ jobs:
           ref: develop
           fetch-depth: 0
 
+      - name: Identify merged PR
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "🔍 Searching for PR associated with commit ${{ github.sha }}..."
+
+          # Try to find the merged PR that contains this commit SHA
+          pr_number=$(gh pr list \
+            --base develop \
+            --state merged \
+            --search "${{ github.sha }}" \
+            --json number \
+            -q '.[0].number')
+
+          if [ -z "$pr_number" ]; then
+            echo "⚠️  No merged PR found for this push (likely a direct push or force push)."
+            echo "skip_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "Found merged PR #$pr_number"
+            echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+            echo "skip_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check PR labels
+        id: check_labels
+        if: steps.find_pr.outputs.skip_prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number=${{ steps.find_pr.outputs.pr_number }}
+          echo "🔍 Checking labels for PR #$pr_number..."
+          labels=$(gh pr view "$pr_number" --json labels -q '.labels[].name' | tr '\n' ' ')
+          echo "Labels: $labels"
+
+          if [[ "$labels" == *"automation"* || "$labels" == *"version-bump"* ]]; then
+            echo "⚠️  Skipping prerelease — PR is automation-related."
+            echo "skip_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Labels OK — proceed with prerelease."
+            echo "skip_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Exit if prerelease should be skipped
+        if: steps.find_pr.outputs.skip_prerelease == 'true' || steps.check_labels.outputs.skip_prerelease == 'true'
+        run: |
+          echo "⚠️  Skipping prerelease — either no merged PR or automation labels detected."
+          exit 78  # GitHub's special neutral exit code (job stops, marked as skipped)
+      # --- prepare enviornment
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -38,8 +87,8 @@ jobs:
 
       - name: Install jq and gh
         run: sudo apt-get update && sudo apt-get install -y jq gh
-      # --- Version Detection ---
 
+      # --- Version Detection ---
       - name: Get stable and latest prerelease
         id: get_versions
         run: |
@@ -74,7 +123,8 @@ jobs:
       - name: Determine bump type
         id: bump_type
         run: |
-          labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' | jq -r '.[].name')
+          labels=$(echo '${{ toJson(github.event.pull_request.labels) }}' \
+            | jq -r 'if type == "array" and length > 0 then .[].name else empty end')
           echo "Labels: $labels"
 
           bump="patch"
@@ -110,6 +160,7 @@ jobs:
 
           echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
           echo "New prerelease tag: $new_tag"
+
       # --- Update package.json ---
       - name: Update package.json version
         id: update_pkg
@@ -154,23 +205,42 @@ jobs:
           pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
           gh pr merge $pr_number --auto --squash
           echo "Auto-merge enabled for PR #$pr_number"
-      - name: Commit version bump
+      
+      - name: Wait for auto-merge to complete
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add package.json package-lock.json || true
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}" || echo "No changes to commit"
-          git push origin develop
+          pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
+          echo "🕓 Waiting for PR #$pr_number to be merged..."
+
+          for i in {1..30}; do
+            state=$(gh pr view $pr_number --json state -q '.state')
+            echo "  ➤ Attempt $i: PR state = $state"
+
+            if [[ "$state" == "MERGED" ]]; then
+              echo "✅ PR #$pr_number successfully merged!"
+              exit 0
+            fi
+
+            if [[ "$state" == "CLOSED" ]]; then
+              echo "❌ PR #$pr_number was closed without merging."
+              exit 1
+            fi
+
+            # Wait 10 seconds between checks (max ~5 minutes)
+            sleep 10
+          done
+
+          echo "❌ Timed out waiting for PR #$pr_number to merge after 5 minutes."
+          exit 1
 
       # --- Publish to npm (next tag) ---
-
       - name: Publish prerelease to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag next
 
       # --- Generate grouped release notes and changelog ---
-
       - name: Generate grouped release notes
         id: notes
         env:
@@ -260,7 +330,6 @@ jobs:
           echo "release_notes=release_notes.md" >> $GITHUB_OUTPUT
 
       # --- Create GitHub Pre-release ---
-
       - name: Create GitHub Pre-release
         run: |
           gh release create "${{ steps.bump.outputs.new_tag }}" \
