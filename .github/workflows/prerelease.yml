@@ -260,7 +260,7 @@ jobs:
             new_version="${{ steps.bump.outputs.new_tag }}"
             new_version="${new_version#v}"
             
-            npm version "$new_version" --no-git-tag-version 
+            npm version "${new_version}" --no-git-tag-version 
             
             echo "Updated package.json version to $new_version"
             
