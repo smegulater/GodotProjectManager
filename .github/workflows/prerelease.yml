@@ -1,8 +1,15 @@
 name: Prerelease (develop)
 
 on:
+<<<<<<< Updated upstream
   push:
     branches: [develop]
+=======
+  pull_request:
+    types: [closed]
+    branches:
+      - develop  # or main, etc.
+>>>>>>> Stashed changes
 
 jobs:
   prerelease:
