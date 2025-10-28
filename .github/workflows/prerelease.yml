@@ -254,9 +254,8 @@ jobs:
           run: |
             branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
             
+            git push origin --delete "$branch" || true
             git checkout -b "$branch"
-            git fetch origin $branch || true
-            git rebase origin/$branch || true
             
             new_version="${{ steps.bump.outputs.new_tag }}"
             new_version="${new_version#v}"
