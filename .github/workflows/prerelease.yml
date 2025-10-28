@@ -105,7 +105,7 @@ jobs:
 
   bump-package-version-and-deploy:
       runs-on: ubuntu-latest
-      needs: check-autodeploy-pipeline-should-run
+      needs: run-tests
 
       permissions:
         contents: write
@@ -249,10 +249,16 @@ jobs:
           run: |
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
         - name: Create version bump branch
           run: |
             branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
             git checkout -b "$branch"
+            git pull
+            new_version="${{ steps.bump.outputs.new_tag }}"
+            new_version="${new_version#v}"
+            npm version --no-git-tag-version "$new_version"
+            echo "Updated package.json version to $new_version"
             git add package.json package-lock.json || true
             git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}"
             git push origin "$branch"
