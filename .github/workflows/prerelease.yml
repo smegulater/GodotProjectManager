@@ -153,7 +153,7 @@ jobs:
           IFS='.' read -r pre_major pre_minor pre_patch <<<"$inner_version"
 
           # --- Apply label-based bump rules ---
-            
+
           if [[ "$labels" == *"enhancement"* ]]; then
             echo "🔼 Enhancement detected — bumping MAJOR"
             pre_major=$((pre_major + 1))
@@ -187,6 +187,10 @@ jobs:
           echo "Updated package.json version to $new_version"
 
       # --- Commit version bump ---
+      - name: Set up Git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
       - name: Create version bump branch
         run: |
           branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
