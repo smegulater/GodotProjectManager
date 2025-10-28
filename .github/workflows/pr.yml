@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Ensure PR has a valid label
         run: |
-          labels=$(jq -r '.pull_request.labels[].name' <<< "${{ toJson(github.event) }}")
+          labels=$(gh pr view "$pr_number" --json labels -q '.labels[].name' | tr '\n' ' ')
           echo "Labels on PR: $labels"
 
           if [[ "$labels" != *"enhancement"* || "$labels" != *"bug"* || "$labels" != *"documentation"* ]]; then
