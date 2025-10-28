@@ -50,23 +50,23 @@ jobs:
           set -euo pipefail
 
           stable=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease==false) | .tagName' | sort -V | tail -n 1)
-          
+
           if [ -z "$stable" ]; then
             echo "⚠️  No stable releases found — defaulting to 1.0.0"
             stable="1.0.0"
           fi
-          
+
           stable=${stable#v}
           echo "Stable version: $stable"
 
           # Get latest prerelease matching that stable base
           prerelease=$(gh release list --limit 100 --json tagName,isPrerelease | jq -r --arg stable "${stable}-prerelease" '.[] | select(.isPrerelease==true and (.tagName | type=="string") and (.tagName | startswith($stable))) | .tagName' | sort -V | tail -n 1)
-          
+
           if [ -z "$prerelease" ]; then
             echo "⚠️  No prereleases found — defaulting to 0.0.0 and will be bumped based on PR labels"
             prerelease="0.0.0"
           fi
-          
+
           prerelease=${prerelease#v}
           echo "Latest prerelease: $prerelease"
 
@@ -124,7 +124,40 @@ jobs:
           echo "Updated package.json version to $new_version"
 
       # --- Commit version bump ---
+      - name: Create version bump branch
+        run: |
+          branch="auto/bump-${{ steps.bump.outputs.new_tag }}"
+          git checkout -b "$branch"
+          git add package.json package-lock.json || true
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}"
+          git push origin "$branch"
 
+      - name: Create pull request
+        id: create_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="chore: bump version to ${{ steps.bump.outputs.new_tag }}"
+          body="Automated version bump to ${{ steps.bump.outputs.new_tag }}"
+          pr_url=$(gh pr create --title "$title" --body "$body" --base develop --head "auto/bump-${{ steps.bump.outputs.new_tag }}" --label "automation,version-bump" --fill)
+          echo "pr_url=$pr_url" >> $GITHUB_OUTPUT
+          echo "Created PR: $pr_url"
+
+      - name: Approve PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
+          gh pr review $pr_number --approve
+          echo "Approved PR #$pr_number"
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number=$(gh pr view ${{ steps.create_pr.outputs.pr_url }} --json number -q ".number")
+          gh pr merge $pr_number --auto --squash
+          echo "Auto-merge enabled for PR #$pr_number"
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
@@ -239,4 +272,3 @@ jobs:
             --target develop \
             --title "Pre-release ${{ steps.bump.outputs.new_tag }}" \
             --notes-file "${{ steps.notes.outputs.release_notes }}"
-
